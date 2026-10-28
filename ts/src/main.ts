@@ -5,7 +5,8 @@ import * as ui from './ui';
 import { auth, authMessage, configError, ROLE_LABEL, type Member } from './auth';
 import type { View } from './types';
 import { dashboard } from './views/dashboard';
-import { inbox } from './views/inbox';
+import { dateFilter, inbox, setDateFilter } from './views/inbox';
+import { bindCalendar, renderCalendar } from './calendar';
 import { delivery } from './views/delivery';
 import { personas } from './views/personas';
 import { products } from './views/products';
@@ -41,6 +42,8 @@ function renderShell(): void {
       <span class="dot"></span>
       <span><strong>${ui.esc(label)}</strong><small>最終同期 ${ui.fmtDate(n.lastSync)}</small></span>
     </a>`;
+
+  renderCalendar(ui.byId('calendar'), current === 'inbox' ? dateFilter() : '');
 }
 
 function render(): void {
@@ -178,6 +181,15 @@ window.addEventListener('hashchange', () => {
   render();
   window.scrollTo(0, 0);
   document.body.classList.remove('nav-open');
+});
+
+// サイドバーのカレンダー: 日・月を選ぶと、収集・AI判定をその日・その月の記事に絞って開く
+bindCalendar(ui.byId('calendar'), () => (current === 'inbox' ? dateFilter() : ''), (value) => {
+  setDateFilter(value);
+  document.body.classList.remove('nav-open');
+  if (location.hash !== '#inbox') location.hash = '#inbox'; // 画面の切り替えで描き直される
+  else render();
+  window.scrollTo(0, 0);
 });
 
 ui.byId('menu-btn').addEventListener('click', () => document.body.classList.toggle('nav-open'));

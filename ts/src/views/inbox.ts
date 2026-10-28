@@ -10,9 +10,17 @@ interface Filters {
   status: ItemStatus | '';
   type: ItemType | '';
   threshold: number;
+  /** 収集日で絞る。'YYYY-MM'（月）か 'YYYY-MM-DD'（日）。サイドバーのカレンダーから決める */
+  date: string;
 }
 
-const f: Filters = { persona: '', status: '', type: '', threshold: 0 };
+const f: Filters = { persona: '', status: '', type: '', threshold: 0, date: '' };
+
+/** サイドバーのカレンダーから、収集日の絞り込みを決める（'' で解除） */
+export function setDateFilter(value: string): void {
+  f.date = value;
+}
+export const dateFilter = (): string => f.date;
 let selectedId: string | null = null;
 let reloading = false;
 let collecting = false;
@@ -25,6 +33,7 @@ const STATUS_KEYS = Object.keys(ui.STATUS) as ItemStatus[];
 
 function filtered(items: Item[]): Item[] {
   return items
+    .filter((i) => !f.date || ui.localDay(i.collectedAt).startsWith(f.date))
     .filter((i) => !f.status || i.status === f.status)
     .filter((i) => !f.type || i.type === f.type)
     .filter((i) => {
@@ -129,7 +138,8 @@ function render(root: HTMLElement): void {
   if (hashId && store.item(hashId) && selectedId !== hashId) selectedId = hashId;
   if (f.persona && !store.persona(f.persona)) f.persona = '';
   const list = filtered(s.items);
-  if (!store.item(selectedId)) selectedId = list[0]?.id ?? null;
+  // 選んでいた記事が絞り込みで見えなくなったら、一覧の先頭を選ぶ
+  if (!list.some((i) => i.id === selectedId)) selectedId = list[0]?.id ?? null;
   const sel = store.item(selectedId);
   const lastRun = s.runs[0];
   // 最新 = 記事を登録した直近のバッチ 1 回分（その実行が始まった後に登録された、バッチ由来の記事）
@@ -148,6 +158,7 @@ function render(root: HTMLElement): void {
       <select data-filter="persona"><option value="">すべてのペルソナ</option>${s.personas.map((p) => `<option value="${p.id}" ${f.persona === p.id ? 'selected' : ''}>${ui.esc(p.code)} ${ui.esc(p.name)}</option>`).join('')}</select>
       <select data-filter="status"><option value="">すべての状態</option>${STATUS_KEYS.map((k) => `<option value="${k}" ${f.status === k ? 'selected' : ''}>${ui.STATUS[k].label}</option>`).join('')}</select>
       <select data-filter="type"><option value="">News + SNS</option><option value="news" ${f.type === 'news' ? 'selected' : ''}>News</option><option value="sns" ${f.type === 'sns' ? 'selected' : ''}>SNS</option></select>
+      ${f.date ? `<span class="date-chip">${ui.esc(ui.dayLabel(f.date))}の記事 ${list.length} 件<button class="icon-btn" data-act="clear-date" aria-label="日付の絞り込みを解除">✕</button></span>` : ''}
       <label class="range"><span>関連しきい値</span><input type="range" min="0" max="100" step="5" value="${f.threshold}" data-filter="threshold"><b class="mono" id="th-val">${f.threshold}</b></label>
     </div>
 
@@ -179,6 +190,9 @@ function render(root: HTMLElement): void {
       history.replaceState(null, '', '#inbox/' + id);
       render(root);
       ui.byId('detail').scrollIntoView({ behavior: 'smooth', block: 'start' }); // 一覧の下にある詳細まで移動する
+    } else if (act === 'clear-date') {
+      f.date = '';
+      store.update(() => {}); // 一覧とサイドバーのカレンダーを描き直す
     } else if (act === 'top') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (act === 'back') {

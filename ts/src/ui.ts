@@ -23,6 +23,18 @@ export function fmtDate(iso: string | null | undefined, withTime = true): string
   return withTime ? `${s} ${pad(d.getHours())}:${pad(d.getMinutes())}` : s;
 }
 
+/** ブラウザの時刻（日本時間）での日付 'YYYY-MM-DD'。カレンダーと収集日の絞り込みに使う */
+export function localDay(iso: string | Date): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** 'YYYY-MM' → 2026年10月、'YYYY-MM-DD' → 10月28日 */
+export function dayLabel(value: string): string {
+  const [y, m, d] = value.split('-').map(Number);
+  return d ? `${m}月${d}日` : `${y}年${m}月`;
+}
+
 export function relTime(iso: string): string {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
   if (diff < 60) return 'たった今';
