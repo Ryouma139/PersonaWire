@@ -65,7 +65,7 @@ function detail(it: Item | undefined): string {
         ${ui.badge(ui.STATUS, it.status)}
       </div>
       <h2 class="detail-title">${ui.esc(it.title)}</h2>
-      <div class="meta">${ui.kindTag(it.kind)}<span>${ui.esc(it.source)} · ${ui.fmtDate(it.collectedAt)}</span>${href ? `<a class="link" href="${ui.esc(href)}" target="_blank" rel="noopener noreferrer">元記事 ↗</a>` : '<span class="muted">元記事のURLが不正です</span>'}</div>
+      <div class="meta">${ui.kindTag(it.kind)}<span>${ui.esc(it.source)} · 収集 ${ui.fmtDate(it.collectedAt)}${it.sourceId ? ` · 取得 ${ui.fmtDate(it.fetchedAt)}` : ` · 登録 ${ui.fmtDate(it.fetchedAt)}`}</span>${href ? `<a class="link" href="${ui.esc(href)}" target="_blank" rel="noopener noreferrer">元記事 ↗</a>` : '<span class="muted">元記事のURLが不正です</span>'}</div>
       <p class="detail-excerpt">${ui.esc(it.excerpt)}</p>
 
       <h3 class="label">ペルソナ適合度と判定理由</h3>
@@ -127,6 +127,10 @@ function render(root: HTMLElement): void {
   if (!store.item(selectedId)) selectedId = list[0]?.id ?? null;
   const sel = store.item(selectedId);
   const lastRun = s.runs[0];
+  // 最新 = 記事を登録した直近のバッチ 1 回分（その実行が始まった後に登録された、バッチ由来の記事）
+  const newRun = s.runs.find((r) => r.inserted > 0);
+  const newSince = newRun ? Date.parse(newRun.startedAt) : Infinity;
+  const isNew = (i: Item): boolean => i.sourceId !== null && Date.parse(i.fetchedAt) >= newSince;
 
   root.innerHTML = `
     ${ui.pageHead('収集・AI判定', `NewsとSNSから集めた記事を、${s.personas.length}つのペルソナとの適合度で振り分けます`,
@@ -146,9 +150,9 @@ function render(root: HTMLElement): void {
       ${list.length ? list.map((i) => {
         const p = store.persona(i.persona);
         return `
-        <article class="row ${i.id === selectedId ? 'selected' : ''}" data-act="select" data-id="${i.id}">
+        <article class="row ${i.id === selectedId ? 'selected' : ''} ${isNew(i) ? 'is-new' : ''}" data-act="select" data-id="${i.id}">
           <div class="row-body">
-            <div class="meta">${ui.kindTag(i.kind)}<span>${ui.esc(i.source)}</span><span class="mono">${ui.fmtDate(i.collectedAt)}</span>${ui.badge(ui.STATUS, i.status)}${i.verdict ? '' : '<span class="badge badge-muted">AI判定待ち</span>'}</div>
+            <div class="meta">${isNew(i) ? '<span class="badge badge-new">NEW</span>' : ''}${ui.kindTag(i.kind)}<span>${ui.esc(i.source)}</span><span class="mono" title="収集日時（記事が出た・Notion に入った日時）">${ui.fmtDate(i.collectedAt)}</span>${i.sourceId ? `<span class="mono" title="バッチで DB に取り込んだ日時">取得 ${ui.fmtDate(i.fetchedAt)}</span>` : ''}${ui.badge(ui.STATUS, i.status)}${i.verdict ? '' : '<span class="badge badge-muted">AI判定待ち</span>'}</div>
             <h3>${ui.esc(i.title)}</h3>
             <div class="meta"><span>主担当</span>${ui.personaChip(p)}</div>
           </div>

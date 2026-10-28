@@ -263,6 +263,23 @@ input[type=checkbox] { accent-color: var(--accent); }
 .list-card .row:last-child { border-bottom: none; }
 .list-card .row:hover { background: var(--surface-2); }
 .list-card .row.selected { background: var(--surface-2); box-shadow: inset 2px 0 0 var(--accent); }
+
+/* 最新のバッチで取り込んだ記事。ダークモードでは白い背景にし、中の文字・バッジは明るいモードの色にする */
+.list-card .row.is-new {
+  --text: #16191e; --text-2: #5f6875; --text-3: #98a0ab; --border: #e3e6eb; --surface-2: #f1f3f6;
+  --accent: #3d6fe0; --accent-soft: rgba(61, 111, 224, .12);
+  --ok: #1f8f55; --ok-soft: rgba(31, 143, 85, .12); --warn: #b26a00; --warn-soft: rgba(178, 106, 0, .12);
+  background: #ffffff; color: var(--text);
+}
+.list-card .row.is-new:hover { background: #f4f6f9; }
+.list-card .row.is-new.selected { background: #eef2fb; }
+.badge-new { background: var(--accent); color: #ffffff; }
+/* 明るいモードでは、ほかの行も白いので、薄い色で目立たせる */
+@media (prefers-color-scheme: light) {
+  .list-card .row.is-new { background: #fff8e1; }
+  .list-card .row.is-new:hover { background: #fff1c4; }
+  .list-card .row.is-new.selected { background: #ffecb0; }
+}
 .row-body { flex: 1; min-width: 0; }
 .row-body h3 { font-size: 14px; font-weight: 700; margin: 4px 0 6px; }
 

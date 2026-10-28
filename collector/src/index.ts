@@ -1,5 +1,5 @@
 /* Persona Wire 収集バッチ（Cloudflare Workers）
- * - 定期実行: wrangler.jsonc の crons（30 分ごと）
+ * - 定期実行: wrangler.jsonc の crons（2 時間ごと。日本時間の偶数時）
  * - 手動実行: POST /run
  *     管理画面から: Authorization: Bearer <Supabase のログイン証明書>（承認済みのメンバーだけ）
  *     コマンドから: Authorization: Bearer <RUN_TOKEN>

@@ -3,8 +3,9 @@
   "name": "persona-wire-collector",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
-  // 30分ごとに、収集先（Notion・RSS）から新着を読み、Supabase の articles に登録する（src/index.ts の scheduled）
-  "triggers": { "crons": ["*/30 * * * *"] },
+  // 2 時間ごとに、収集先（Notion・RSS）から新着を読み、Supabase の articles に登録する（src/index.ts の scheduled）。
+  // Cron は UTC で書く。UTC の奇数時 = 日本時間の偶数時（0:00、2:00 … 22:00）
+  "triggers": { "crons": ["0 1-23/2 * * *"] },
   "vars": {
     "SUPABASE_URL": "https://dxfzlwxibsdkaighzzjo.supabase.co",
     // バッチで登録する記事の 1 日（日本時間）の上限。RSS・note・Notion の合計

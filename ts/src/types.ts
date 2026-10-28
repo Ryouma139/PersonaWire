@@ -38,6 +38,10 @@ export interface Item {
   scores: Record<PersonaId, number>;
   status: ItemStatus;
   collectedAt: string;
+  /** DB に登録された日時。収集バッチで入った記事なら、バッチの取得日時 */
+  fetchedAt: string;
+  /** 収集バッチで入った記事の収集先。手で追加した記事は null */
+  sourceId: string | null;
   /** null = AI 判定待ち（スコアがまだ無い） */
   verdict: Verdict | null;
   persona: PersonaId | null;

@@ -19,6 +19,8 @@ interface PersonaRow {
 interface ArticleRow {
   id: string;
   no: number;
+  source_id: string | null;
+  created_at: string;
   type: 'news' | 'sns';
   kind: SourceKind;
   source_name: string;
@@ -93,7 +95,7 @@ function toItem(r: ArticleRow): Item {
   return {
     id: r.id, no: r.no, type: r.type, kind: r.kind, source: r.source_name, category: r.category, title: r.title,
     excerpt: r.excerpt, url: r.url, comment: r.editor_comment, notionDb: r.notion_db, status: r.status,
-    collectedAt: r.collected_at, verdict: r.verdict, persona: r.primary_persona_id, scores, reasons,
+    collectedAt: r.collected_at, fetchedAt: r.created_at, sourceId: r.source_id, verdict: r.verdict, persona: r.primary_persona_id, scores, reasons,
   };
 }
 
