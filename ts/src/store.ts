@@ -193,6 +193,7 @@ export const store = {
    */
   setItemStatus(it: Item, to: ItemStatus): Issue[] {
     it.status = to;
+    it.updatedAt = new Date().toISOString(); // DB 側でも更新日時が今になる（却下からの自動削除の起点）
     if (isUsable(to)) return [];
     const touched = state.issues.filter((x) => x.status !== 'sent' && x.itemIds.includes(it.id));
     for (const x of touched) {

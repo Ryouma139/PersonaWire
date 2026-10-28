@@ -10,6 +10,8 @@
     "SUPABASE_URL": "https://dxfzlwxibsdkaighzzjo.supabase.co",
     // バッチで登録する記事の 1 日（日本時間）の上限。RSS・note・Notion の合計
     "DAILY_LIMIT": "100",
+    // 却下した記事を、最後の更新（却下した操作を含む）から何日で削除するか
+    "PURGE_REJECTED_DAYS": "5",
     // 「今すぐ収集」ボタンを置く管理画面の URL（カンマ区切り）。ここからのブラウザの呼び出しだけを受け付ける
     "ALLOWED_ORIGINS": "https://persona-wire-admin.tryoma0227.workers.dev,http://localhost:5173"
   },

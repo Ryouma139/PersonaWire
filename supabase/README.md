@@ -6,6 +6,8 @@
 |---|---|
 | [migrations/20261028000000_phase1.sql](migrations/20261028000000_phase1.sql) | 表（`users`、`activity_logs`、`personas`、`sources`、`source_personas`、`articles`、`article_persona_scores`）、権限ルール（RLS）、トリガー |
 | [migrations/20261029000000_collector.sql](migrations/20261029000000_collector.sql) | 第2段階の収集バッチ用。`sources` に Notion 用の設定を追加、実行履歴 `collect_runs`、news_link を収集先に登録（[collector/](../collector/README.md)） |
+| [migrations/20261029010000_youtube_sources.sql](migrations/20261029010000_youtube_sources.sql) | YouTube の 5 チャンネルを収集先に登録（各チャンネル 1 回 2 本まで） |
+| [migrations/20261029020000_purge_rejected.sql](migrations/20261029020000_purge_rejected.sql) | 却下から 5 日たった記事を削除する関数と、削除した URL の記録（`purged_urls`）。収集バッチが 2 時間ごとに呼ぶ |
 | [seed.sql](seed.sql) | 開発用のサンプルデータ（ペルソナ 5 件、記事 14 件、スコア 70 件）。`ts/src/store.ts` の初期データから自動生成。何度実行しても重複しない |
 
 ## 適用のしかた

@@ -21,6 +21,7 @@ interface ArticleRow {
   no: number;
   source_id: string | null;
   created_at: string;
+  updated_at: string;
   type: 'news' | 'sns';
   kind: SourceKind;
   source_name: string;
@@ -44,11 +45,12 @@ interface RunRow {
   ok: boolean | null;
   inserted: number;
   skipped: number;
+  purged: number;
   message: string;
 }
 
 const toRun = (r: RunRow): CollectRun => ({
-  startedAt: r.started_at, finishedAt: r.finished_at, trigger: r.trigger, ok: r.ok, inserted: r.inserted, skipped: r.skipped, message: r.message,
+  startedAt: r.started_at, finishedAt: r.finished_at, trigger: r.trigger, ok: r.ok, inserted: r.inserted, skipped: r.skipped, purged: r.purged, message: r.message,
 });
 
 interface LogRow {
@@ -95,7 +97,7 @@ function toItem(r: ArticleRow): Item {
   return {
     id: r.id, no: r.no, type: r.type, kind: r.kind, source: r.source_name, category: r.category, title: r.title,
     excerpt: r.excerpt, url: r.url, comment: r.editor_comment, notionDb: r.notion_db, status: r.status,
-    collectedAt: r.collected_at, fetchedAt: r.created_at, sourceId: r.source_id, verdict: r.verdict, persona: r.primary_persona_id, scores, reasons,
+    collectedAt: r.collected_at, fetchedAt: r.created_at, updatedAt: r.updated_at, sourceId: r.source_id, verdict: r.verdict, persona: r.primary_persona_id, scores, reasons,
   };
 }
 
@@ -129,7 +131,7 @@ export const db = {
       supabase.from('personas').select('*').order('code'),
       supabase.from('articles').select('*, article_persona_scores(persona_id, relevance_score, reasons)').order('collected_at', { ascending: false }),
       supabase.from('activity_logs').select('created_at, action, detail, actor, users(name)').order('created_at', { ascending: false }).limit(30),
-      supabase.from('collect_runs').select('started_at, finished_at, trigger, ok, inserted, skipped, message').order('started_at', { ascending: false }).limit(10),
+      supabase.from('collect_runs').select('started_at, finished_at, trigger, ok, inserted, skipped, purged, message').order('started_at', { ascending: false }).limit(10),
     ]);
     if (p.error) throw p.error;
     if (a.error) throw a.error;

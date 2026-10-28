@@ -19,6 +19,8 @@ let collecting = false;
 
 const NOTION_DBS: NotionDbName[] = ['articles', 'sns_posts', 'ideas'];
 const KINDS: SourceKind[] = ['NEWS', 'YOUTUBE', 'NOTE', 'X', 'THREADS'];
+// 却下した記事を自動で削除するまでの日数（collector/wrangler.jsonc の PURGE_REJECTED_DAYS と合わせる）
+const PURGE_DAYS = 5;
 const STATUS_KEYS = Object.keys(ui.STATUS) as ItemStatus[];
 
 function filtered(items: Item[]): Item[] {
@@ -103,6 +105,7 @@ function detail(it: Item | undefined): string {
         <textarea rows="2" data-act="comment" data-id="${it.id}" placeholder="読者に向けたひとこと">${ui.esc(it.comment)}</textarea>
       </label>
 
+      ${it.status === 'rejected' ? `<p class="muted small">却下した記事は、最後の更新から ${PURGE_DAYS} 日たつと自動で削除されます（${ui.fmtDate(new Date(Date.parse(it.updatedAt) + PURGE_DAYS * 864e5).toISOString())} 以降の収集時）。残したい場合は「要確認に戻す」か「採用する」を押してください</p>` : ''}
       <div class="detail-actions">
         ${it.status !== 'approved' && it.status !== 'published' ? `<button class="btn btn-primary" data-act="status" data-to="approved" data-id="${it.id}">採用する</button>` : ''}
         ${it.status === 'approved' ? `<button class="btn btn-primary" data-act="status" data-to="published" data-id="${it.id}">公開サイトへ公開</button>` : ''}

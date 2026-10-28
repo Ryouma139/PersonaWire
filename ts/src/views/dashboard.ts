@@ -115,7 +115,7 @@ function render(root: HTMLElement): void {
 
     <section class="card">
       <div class="card-head"><h2>収集バッチ</h2><a href="#inbox" class="link">収集・AI判定 →</a></div>
-      ${s.runs.length ? `<ul class="timeline">${s.runs.slice(0, 6).map((r) => `<li><time>${ui.fmtDate(r.startedAt)}</time><span>${ui.runBadge(r)} ${ui.runTrigger(r)} · 登録 ${r.inserted} 件 · 対象外 ${r.skipped} 件${r.message ? `<small class="run-msg">${ui.esc(r.message)}</small>` : ''}</span></li>`).join('')}</ul>` : '<p class="empty">まだ実行されていません</p>'}
+      ${s.runs.length ? `<ul class="timeline">${s.runs.slice(0, 6).map((r) => `<li><time>${ui.fmtDate(r.startedAt)}</time><span>${ui.runBadge(r)} ${ui.runTrigger(r)} · 登録 ${r.inserted} 件 · 対象外 ${r.skipped} 件${r.purged ? ` · 却下から削除 ${r.purged} 件` : ''}${r.message ? `<small class="run-msg">${ui.esc(r.message)}</small>` : ''}</span></li>`).join('')}</ul>` : '<p class="empty">まだ実行されていません</p>'}
     </section>
 
     <section class="card">

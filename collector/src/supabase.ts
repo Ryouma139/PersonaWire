@@ -6,6 +6,8 @@ export interface Env {
   NOTION_TOKEN?: string;
   RUN_TOKEN?: string;
   DAILY_LIMIT?: string;
+  /** 却下した記事を、最後の更新から何日で削除するか */
+  PURGE_REJECTED_DAYS?: string;
   ALLOWED_ORIGINS?: string;
 }
 
@@ -47,6 +49,10 @@ export function rest(env: Env) {
     },
     async update(path: string, patch: unknown): Promise<void> {
       await call('PATCH', path, patch, 'return=minimal');
+    },
+    /** DB の関数を呼ぶ（supabase/migrations の create function） */
+    async rpc<T>(name: string, args: Record<string, unknown>): Promise<T> {
+      return (await call('POST', `rpc/${name}`, args)).json() as Promise<T>;
     },
   };
 }

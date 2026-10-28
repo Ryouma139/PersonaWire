@@ -40,6 +40,8 @@ export interface Item {
   collectedAt: string;
   /** DB に登録された日時。収集バッチで入った記事なら、バッチの取得日時 */
   fetchedAt: string;
+  /** 最後に更新された日時。却下した記事は、ここから 5 日で自動削除される（collector/）*/
+  updatedAt: string;
   /** 収集バッチで入った記事の収集先。手で追加した記事は null */
   sourceId: string | null;
   /** null = AI 判定待ち（スコアがまだ無い） */
@@ -147,6 +149,8 @@ export interface CollectRun {
   ok: boolean | null;
   inserted: number;
   skipped: number;
+  /** 却下から日数がたったので削除した記事数 */
+  purged: number;
   message: string;
 }
 

@@ -27,6 +27,8 @@ export interface Summary {
   /** 今日（日本時間）すでにバッチで登録した件数と、上限 */
   usedToday: number;
   limit: number;
+  /** 却下から日数がたったので削除した記事数 */
+  purged: number;
   sources: SourceReport[];
   message: string;
 }
@@ -37,13 +39,13 @@ function jstMidnight(now = Date.now()): string {
   return new Date(Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate()) - 9 * 3600e3).toISOString();
 }
 
-/** すでに articles にある URL（40 件ずつ問い合わせる） */
+/** すでに articles にある URL と、却下して削除した記事の URL（purged_urls）。40 件ずつ問い合わせる */
 async function existingUrls(db: Rest, urls: string[]): Promise<Set<string>> {
   const found = new Set<string>();
   for (let i = 0; i < urls.length; i += 40) {
-    const chunk = urls.slice(i, i + 40);
-    const rows = await db.select<{ url: string }>(`articles?select=url&url=${encodeURIComponent(inList(chunk))}`);
-    for (const r of rows) found.add(r.url);
+    const q = `select=url&url=${encodeURIComponent(inList(urls.slice(i, i + 40)))}`;
+    const [live, purged] = await Promise.all([db.select<{ url: string }>(`articles?${q}`), db.select<{ url: string }>(`purged_urls?${q}`)]);
+    for (const r of [...live, ...purged]) found.add(r.url);
   }
   return found;
 }
@@ -62,7 +64,7 @@ export async function collect(env: Env, trigger: 'cron' | 'manual'): Promise<Sum
   const db = rest(env);
   const [run] = await db.insert<{ id: number }>('collect_runs', { trigger }, { select: 'id' });
   const limit = Number(env.DAILY_LIMIT ?? 100);
-  const summary: Summary = { ok: true, inserted: 0, skipped: 0, usedToday: 0, limit, sources: [], message: '' };
+  const summary: Summary = { ok: true, inserted: 0, skipped: 0, usedToday: 0, limit, purged: 0, sources: [], message: '' };
 
   try {
     summary.usedToday = await db.count(`articles?select=id&source_id=not.is.null&created_at=gte.${encodeURIComponent(jstMidnight())}`);
@@ -146,12 +148,26 @@ export async function collect(env: Env, trigger: 'cron' | 'manual'): Promise<Sum
     summary.message = e instanceof Error ? e.message : String(e);
   }
 
+  // 却下して日数がたった記事を削除する。収集が失敗しても行う
+  const days = Number(env.PURGE_REJECTED_DAYS ?? 5);
+  try {
+    summary.purged = await db.rpc<number>('purge_rejected_articles', { days });
+    if (summary.purged) {
+      summary.message += `、却下から ${days} 日たった ${summary.purged} 件を削除`;
+      await db.insert('activity_logs', { actor: 'system', user_id: null, action: 'article.purge', detail: { text: `却下から ${days} 日たった記事 ${summary.purged} 件を削除` } });
+    }
+  } catch (e) {
+    summary.ok = false;
+    summary.message += ` / 却下した記事の削除に失敗: ${e instanceof Error ? e.message : String(e)}`;
+  }
+
   const errors = summary.sources.filter((s) => s.error).map((s) => `${s.name}: ${s.error}`);
   await db.update(`collect_runs?id=eq.${run.id}`, {
     finished_at: new Date().toISOString(),
     ok: summary.ok,
     inserted: summary.inserted,
     skipped: summary.skipped,
+    purged: summary.purged,
     message: [summary.message, ...errors].filter(Boolean).join(' / ').slice(0, 2000),
     detail: { sources: summary.sources, usedToday: summary.usedToday, limit },
   });
