@@ -290,11 +290,13 @@ input[type=checkbox] { accent-color: var(--accent); }
 .spark-col.is-main i { opacity: 1; }
 .spark-col small { font-family: var(--mono); font-size: 9px; color: var(--text-3); line-height: 1; }
 
-.detail { padding: 22px 24px; }
+.detail { padding: 22px 24px; scroll-margin-top: 16px; }
+.detail-back { float: right; margin: -8px -10px 0 8px; }
 .detail-top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
 .detail-title { font-size: 18px; font-weight: 700; margin: 6px 0; }
 .detail-excerpt { margin: 10px 0 0; color: var(--text-2); font-size: 13px; }
 .fit { list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.fit[hidden] { display: none; }
 .fit li { --c: #888; display: grid; grid-template-columns: 40px minmax(0, 1fr) 36px; gap: 6px 16px; align-items: center; }
 .fit-track { position: relative; height: 8px; background: var(--surface-2); border-radius: 99px; }
 .fit-track i { display: block; height: 100%; border-radius: 99px; background: var(--c); }
@@ -453,6 +455,8 @@ input[type=checkbox] { accent-color: var(--accent); }
   body.nav-open .sidebar-scrim { display: block; position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 15; }
   .main { padding: 0 16px 40px; }
   .mobile-bar { display: flex; align-items: center; gap: 10px; padding: 12px 0; position: sticky; top: 0; background: var(--bg); z-index: 10; }
+  /* 上に固定したメニューの下に、詳細の見出しが隠れないようにする */
+  .detail { scroll-margin-top: 64px; }
   .mobile-bar strong { font-family: var(--display); font-weight: 400; }
   .mobile-bar .icon-btn { font-size: 20px; }
   .kpis, .kpis-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }

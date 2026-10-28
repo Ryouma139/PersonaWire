@@ -1,5 +1,5 @@
 /* 収集・AI判定 */
-import { isUsable, store } from '../store';
+import { hasScores, isUsable, store } from '../store';
 import { db, dbMessage, type ArticleFields } from '../db';
 import { auth } from '../auth';
 import * as ui from '../ui';
@@ -59,7 +59,8 @@ function detail(it: Item | undefined): string {
   const drafts = isUsable(it.status) ? s.issues.filter((x) => x.status !== 'sent') : [];
   const href = ui.safeUrl(it.url);
   return `
-    <section class="card detail">
+    <section class="card detail" id="detail">
+      <button class="btn btn-quiet btn-sm detail-back" data-act="back">↑ 一覧に戻る</button>
       <div class="detail-top">
         <span class="mono muted">#${it.no} · ${ui.esc(it.category)}</span>
         ${ui.badge(ui.STATUS, it.status)}
@@ -69,7 +70,8 @@ function detail(it: Item | undefined): string {
       <p class="detail-excerpt">${ui.esc(it.excerpt)}</p>
 
       <h3 class="label">ペルソナ適合度と判定理由</h3>
-      <ul class="fit">
+      ${hasScores(it) ? '' : '<p class="muted small">AI 判定待ちです。スコアはまだありません（「編集」から手で入れることもできます）</p>'}
+      <ul class="fit" ${hasScores(it) ? '' : 'hidden'}>
         ${sorted.map((p) => {
           const v = it.scores[p.id] ?? 0;
           const rs = it.reasons[p.id] ?? [];
@@ -94,8 +96,8 @@ function detail(it: Item | undefined): string {
         </label>
       </div>
 
-      <h3 class="label">article_persona_scores に保存される内容</h3>
-      <pre class="code">${ui.esc(scoresBlock(it))}</pre>
+      ${hasScores(it) ? `<h3 class="label">article_persona_scores に保存される内容</h3>
+      <pre class="code">${ui.esc(scoresBlock(it))}</pre>` : ''}
 
       <label class="field"><span>編集コメント（公開サイト・配信に表示）</span>
         <textarea rows="2" data-act="comment" data-id="${it.id}" placeholder="読者に向けたひとこと">${ui.esc(it.comment)}</textarea>
@@ -167,7 +169,14 @@ function render(root: HTMLElement): void {
     const el = ui.actionTarget(e);
     if (!el) return;
     const act = el.dataset.act, id = el.dataset.id ?? '';
-    if (act === 'select') { selectedId = id; history.replaceState(null, '', '#inbox/' + id); render(root); }
+    if (act === 'select') {
+      selectedId = id;
+      history.replaceState(null, '', '#inbox/' + id);
+      render(root);
+      ui.byId('detail').scrollIntoView({ behavior: 'smooth', block: 'start' }); // 一覧の下にある詳細まで移動する
+    } else if (act === 'back') {
+      root.querySelector(`.row[data-id="${selectedId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
     else if (act === 'reload') reload();
     else if (act === 'collect') collectNow();
     else if (act === 'new') edit();
