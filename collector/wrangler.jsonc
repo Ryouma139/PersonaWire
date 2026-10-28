@@ -12,6 +12,12 @@
     "DAILY_LIMIT": "100",
     // 却下した記事を、最後の更新（却下した操作を含む）から何日で削除するか
     "PURGE_REJECTED_DAYS": "5",
+    // 1 回の実行で外部（Supabase・Notion・RSS・元記事のサイト）に通信できる回数。Workers の無料プランは 50。
+    // 実行の中で数え、残りに合わせて概要の取得を減らす。有料プランにしたら上げる
+    "SUBREQUEST_LIMIT": "50",
+    // 要約が空の記事に、元記事のページの概要を取りに行く 1 回あたりの最大件数。
+    // 通信の残りが少ないときは、自動でこれより少なくなる（実際の回数は実行履歴の detail.subrequests で見られる）
+    "EXCERPT_LIMIT": "5",
     // 「今すぐ収集」ボタンを置く管理画面の URL（カンマ区切り）。ここからのブラウザの呼び出しだけを受け付ける
     "ALLOWED_ORIGINS": "https://persona-wire-admin.tryoma0227.workers.dev,http://localhost:5173"
   },

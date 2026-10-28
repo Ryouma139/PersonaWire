@@ -1,5 +1,7 @@
 /* 収集バッチ: 収集先を読み、安全確認・除外・重複除去・1 日の上限を通して articles に登録する */
 import { safeUrl, type Candidate, type Source } from './candidate';
+import { Budget, RESERVED_FOR_FINISH } from './budget';
+import { fillExcerpts } from './excerpt';
 import { notionCandidates } from './notion';
 import { rssCandidates } from './rss';
 import { inList, rest, type Env, type Rest } from './supabase';
@@ -29,6 +31,11 @@ export interface Summary {
   limit: number;
   /** 却下から日数がたったので削除した記事数 */
   purged: number;
+  /** 要約が空の記事に、元記事の概要を取りに行った件数と、取れた件数 */
+  excerptTried: number;
+  excerptFilled: number;
+  /** この実行で外部に通信した回数（実行履歴の更新を含む） */
+  subrequests: number;
   sources: SourceReport[];
   message: string;
 }
@@ -50,21 +57,25 @@ async function existingUrls(db: Rest, urls: string[]): Promise<Set<string>> {
   return found;
 }
 
-async function read(env: Env, source: Source): Promise<Candidate[]> {
+async function read(env: Env, source: Source, budget: Budget): Promise<Candidate[]> {
   let got: Candidate[];
-  if (source.method === 'notion') got = await notionCandidates(env.NOTION_TOKEN, source);
-  else if (source.method === 'rss') got = await rssCandidates(source);
+  if (source.method === 'notion') got = await notionCandidates(budget.fetch, env.NOTION_TOKEN, source);
+  else if (source.method === 'rss') got = await rssCandidates(source, budget.fetch);
   else throw new Error(`取得方法 ${source.method} にはまだ対応していません`);
   // max_items があれば、新しいものからその数だけにする
   const max = source.options.max_items;
   return max && max > 0 ? got.sort((a, b) => b.collectedAt.localeCompare(a.collectedAt)).slice(0, max) : got;
 }
 
-export async function collect(env: Env, trigger: 'cron' | 'manual'): Promise<Summary> {
-  const db = rest(env);
+/** 1 回の実行で外部に通信できる回数（Workers の無料プランは 50） */
+export const subrequestLimit = (env: Env): number => Number(env.SUBREQUEST_LIMIT ?? 50);
+
+/** budget: この実行の通信の回数。手動実行では、権限の確認で使った分も含めて渡す */
+export async function collect(env: Env, trigger: 'cron' | 'manual', budget = new Budget(subrequestLimit(env))): Promise<Summary> {
+  const db = rest(env, budget.fetch);
   const [run] = await db.insert<{ id: number }>('collect_runs', { trigger }, { select: 'id' });
   const limit = Number(env.DAILY_LIMIT ?? 100);
-  const summary: Summary = { ok: true, inserted: 0, skipped: 0, usedToday: 0, limit, purged: 0, sources: [], message: '' };
+  const summary: Summary = { ok: true, inserted: 0, skipped: 0, usedToday: 0, limit, purged: 0, excerptTried: 0, excerptFilled: 0, subrequests: 0, sources: [], message: '' };
 
   try {
     summary.usedToday = await db.count(`articles?select=id&source_id=not.is.null&created_at=gte.${encodeURIComponent(jstMidnight())}`);
@@ -81,7 +92,7 @@ export async function collect(env: Env, trigger: 'cron' | 'manual'): Promise<Sum
       const report: SourceReport = { name: source.name, read: 0, inserted: 0 };
       summary.sources.push(report);
       try {
-        const got = await read(env, source);
+        const got = await read(env, source, budget);
         report.read = got.length;
         for (const c of got) pool.push({ c, source });
       } catch (e) {
@@ -148,6 +159,18 @@ export async function collect(env: Env, trigger: 'cron' | 'manual'): Promise<Sum
     summary.message = e instanceof Error ? e.message : String(e);
   }
 
+  // 要約が空の記事に、元記事の概要を入れる（新しい記事から）。収集が失敗しても行う。
+  // 件数は EXCERPT_LIMIT まで。ただし通信の残りから、対象の読み込みと書き込み（2 回）と、最後の処理の分を引いた数を超えない
+  try {
+    const room = Math.min(Number(env.EXCERPT_LIMIT ?? 5), budget.left - 2 - RESERVED_FOR_FINISH);
+    const r = await fillExcerpts(db, room, budget.fetch);
+    summary.excerptTried = r.tried;
+    summary.excerptFilled = r.filled;
+    if (r.tried) summary.message += `、概要 ${r.filled}/${r.tried} 件を取得`;
+  } catch (e) {
+    summary.message += ` / 概要の取得に失敗: ${e instanceof Error ? e.message : String(e)}`;
+  }
+
   // 却下して日数がたった記事を削除する。収集が失敗しても行う
   const days = Number(env.PURGE_REJECTED_DAYS ?? 5);
   try {
@@ -161,6 +184,7 @@ export async function collect(env: Env, trigger: 'cron' | 'manual'): Promise<Sum
     summary.message += ` / 却下した記事の削除に失敗: ${e instanceof Error ? e.message : String(e)}`;
   }
 
+  summary.subrequests = budget.used + 1; // この下の実行履歴の更新の 1 回を含める
   const errors = summary.sources.filter((s) => s.error).map((s) => `${s.name}: ${s.error}`);
   await db.update(`collect_runs?id=eq.${run.id}`, {
     finished_at: new Date().toISOString(),
@@ -168,8 +192,10 @@ export async function collect(env: Env, trigger: 'cron' | 'manual'): Promise<Sum
     inserted: summary.inserted,
     skipped: summary.skipped,
     purged: summary.purged,
+    excerpt_tried: summary.excerptTried,
+    excerpt_filled: summary.excerptFilled,
     message: [summary.message, ...errors].filter(Boolean).join(' / ').slice(0, 2000),
-    detail: { sources: summary.sources, usedToday: summary.usedToday, limit },
+    detail: { sources: summary.sources, usedToday: summary.usedToday, limit, subrequests: budget.used + 1, subrequestLimit: budget.limit },
   });
   return summary;
 }

@@ -68,7 +68,9 @@ code { font-size: 12px; background: var(--surface-2); padding: 1px 6px; border-r
 /* ---------- レイアウト ---------- */
 .app { display: flex; min-height: 100vh; }
 .sidebar { width: 228px; flex-shrink: 0; background: var(--side-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; padding: 20px 12px 16px; z-index: 20; }
-.brand { display: block; padding: 0 8px 18px; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 18px; }
+/* ロゴは白地の画像なので、暗い配色でも浮かないよう角を丸めたタイルにする */
+.brand-logo { width: 40px; height: 40px; border-radius: 8px; background: #fff; flex-shrink: 0; }
 .brand strong { display: block; font-family: var(--display); font-weight: 400; font-size: 19px; letter-spacing: .2px; line-height: 1.2; }
 .brand small { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: 2px; color: var(--text-2); margin-top: 3px; }
 .nav { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow-y: auto; }
@@ -459,6 +461,7 @@ input[type=checkbox] { accent-color: var(--accent); }
   .detail { scroll-margin-top: 64px; }
   .mobile-bar strong { font-family: var(--display); font-weight: 400; }
   .mobile-bar .icon-btn { font-size: 20px; }
+  .mobile-bar .brand-logo { width: 28px; height: 28px; border-radius: 6px; }
   .kpis, .kpis-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .field-row { flex-direction: column; gap: 0; }
   .field-xs { flex: 1; }

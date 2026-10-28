@@ -1,5 +1,6 @@
 /* RSS 2.0 / Atom を読む（ニュースサイト、note のマガジンなど） */
 import { XMLParser } from 'fast-xml-parser';
+import type { Fetch } from './budget';
 import { kindOf, type Candidate, type Source } from './candidate';
 
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_', textNodeName: '#text' });
@@ -12,7 +13,7 @@ const list = <T>(v: T | T[] | undefined): T[] => (v === undefined ? [] : Array.i
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 
 /** HTML のタグと文字参照を取り、空白を詰めて最大 200 文字にする */
-function plain(html: string): string {
+export function plain(html: string): string {
   return html
     .replace(/<[^>]*>/g, ' ')
     .replace(/&(#\d+|#x[0-9a-f]+|\w+);/gi, (m, e: string) =>
@@ -27,8 +28,8 @@ function iso(v: string, fallback: string): string {
   return isNaN(t) ? fallback : new Date(t).toISOString();
 }
 
-export async function rssCandidates(source: Source): Promise<Candidate[]> {
-  const res = await fetch(source.target, { headers: { 'User-Agent': 'PersonaWireCollector/0.1 (+https://github.com/Ryouma139/PersonaWire)' } });
+export async function rssCandidates(source: Source, f: Fetch = fetch): Promise<Candidate[]> {
+  const res = await f(source.target, { headers: { 'User-Agent': 'PersonaWireCollector/0.1 (+https://github.com/Ryouma139/PersonaWire)' } });
   if (!res.ok) throw new Error(`RSS ${source.target}: ${res.status}`);
   const xml = parser.parse(await res.text());
   const now = new Date().toISOString();

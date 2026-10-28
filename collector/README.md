@@ -16,7 +16,8 @@
    - 見出しに、有効なペルソナ全員の NG ワードが入っている
    - すでに `articles` にある（URL で判定）
 4. 新しい記事から順に、日本時間の 1 日あたり `DAILY_LIMIT`（100）件まで登録する。上限で漏れた記事は、翌日以降の実行で拾う（Notion は `lookback_days` の範囲内）。
-5. 実行結果を `collect_runs` に、登録があれば操作ログ（`activity_logs`、実行者は「システム」）に残す。
+5. 要約が空の記事（Notion のニュースなど）は、元記事のページの先頭だけを読み、概要（og:description など）を要約に入れる。新しい記事から 1 回 `EXCERPT_LIMIT`（5）件まで。ただし、1 回の実行の外部通信の回数（`SUBREQUEST_LIMIT`。無料プランは 50）の残りが少ないときは、自動で減らす。実際の回数は実行履歴の `detail.subrequests` に残る。取れなかった記事は `excerpt_checked_at` に印を付け、取りに行き直さない。
+6. 実行結果を `collect_runs` に、登録があれば操作ログ（`activity_logs`、実行者は「システム」）に残す。
 
 | 記事の項目 | Notion（記事一覧） | RSS |
 |---|---|---|

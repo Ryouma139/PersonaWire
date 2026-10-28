@@ -1,4 +1,5 @@
 /* Notion: news_link（親ページ）→ 日付ページ → 記事一覧（データベース）をたどって読む */
+import type { Fetch } from './budget';
 import { kindOf, type Candidate, type Source } from './candidate';
 
 const NOTION_VERSION = '2022-06-28';
@@ -24,10 +25,10 @@ type Property =
   | { type: 'select'; select: { name: string } | null }
   | { type: string };
 
-async function notion<T>(token: string, path: string, body?: unknown): Promise<T> {
+async function notion<T>(f: Fetch, token: string, path: string, body?: unknown): Promise<T> {
   // レート制限（429）のときは、言われた秒数だけ待って 3 回までやり直す
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(`https://api.notion.com/v1${path}`, {
+    const res = await f(`https://api.notion.com/v1${path}`, {
       method: body === undefined ? 'GET' : 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Notion-Version': NOTION_VERSION, 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -41,23 +42,23 @@ async function notion<T>(token: string, path: string, body?: unknown): Promise<T
   }
 }
 
-async function children(token: string, blockId: string): Promise<Block[]> {
+async function children(f: Fetch, token: string, blockId: string): Promise<Block[]> {
   const out: Block[] = [];
   let cursor: string | null = null;
   do {
     const q = new URLSearchParams({ page_size: '100', ...(cursor ? { start_cursor: cursor } : {}) });
-    const r: { results: Block[]; next_cursor: string | null } = await notion(token, `/blocks/${blockId}/children?${q}`);
+    const r: { results: Block[]; next_cursor: string | null } = await notion(f, token, `/blocks/${blockId}/children?${q}`);
     out.push(...r.results);
     cursor = r.next_cursor;
   } while (cursor);
   return out;
 }
 
-async function rows(token: string, databaseId: string): Promise<Page[]> {
+async function rows(f: Fetch, token: string, databaseId: string): Promise<Page[]> {
   const out: Page[] = [];
   let cursor: string | null = null;
   do {
-    const r: { results: Page[]; next_cursor: string | null } = await notion(token, `/databases/${databaseId}/query`, { page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) });
+    const r: { results: Page[]; next_cursor: string | null } = await notion(f, token, `/databases/${databaseId}/query`, { page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) });
     out.push(...r.results);
     cursor = r.next_cursor;
   } while (cursor);
@@ -79,18 +80,18 @@ function pageDate(b: Block): number {
   return m ? Date.parse(`${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}T00:00:00+09:00`) : Date.parse(b.created_time);
 }
 
-export async function notionCandidates(token: string | undefined, source: Source): Promise<Candidate[]> {
+export async function notionCandidates(f: Fetch, token: string | undefined, source: Source): Promise<Candidate[]> {
   if (!token) throw new Error('NOTION_TOKEN が設定されていません');
   const o = source.options;
   const names = { title: '', url: '出典URL', site: 'サイト', category: 'カテゴリ', ...o.properties };
   const since = Date.now() - (o.lookback_days ?? 3) * 864e5;
 
-  const datePages = (await children(token, source.target)).filter((b) => b.type === 'child_page' && pageDate(b) >= since);
+  const datePages = (await children(f, token, source.target)).filter((b) => b.type === 'child_page' && pageDate(b) >= since);
   const out: Candidate[] = [];
   for (const dp of datePages) {
-    const dbs = (await children(token, dp.id)).filter((b) => b.type === 'child_database');
+    const dbs = (await children(f, token, dp.id)).filter((b) => b.type === 'child_database');
     for (const db of dbs) {
-      for (const page of await rows(token, db.id)) {
+      for (const page of await rows(f, token, db.id)) {
         const props = page.properties;
         const titleProp = names.title ? props[names.title] : Object.values(props).find((p) => p.type === 'title');
         const urlProp = props[names.url] ?? Object.values(props).find((p) => p.type === 'url');

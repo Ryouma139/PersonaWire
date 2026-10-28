@@ -68,7 +68,7 @@ function showGate(body: string): void {
   gate.hidden = false;
   gate.innerHTML = `
     <section class="gate-card">
-      <div class="brand"><strong>Persona Wire</strong><small>NEWS × SNS CURATION</small></div>
+      <div class="brand"><img class="brand-logo" src="/logo.png" alt=""><span><strong>Persona Wire</strong><small>NEWS × SNS CURATION</small></span></div>
       ${body}
     </section>`;
 }

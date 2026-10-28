@@ -1,3 +1,5 @@
+import type { Fetch } from './budget';
+
 /* Supabase の REST API（PostgREST）を Secret key で呼ぶ。RLS の対象外になるので、Worker の中だけで使う */
 
 export interface Env {
@@ -8,19 +10,24 @@ export interface Env {
   DAILY_LIMIT?: string;
   /** 却下した記事を、最後の更新から何日で削除するか */
   PURGE_REJECTED_DAYS?: string;
+  /** 1 回の実行で、元記事の概要を取りに行く記事の数 */
+  EXCERPT_LIMIT?: string;
+  /** 1 回の実行で外部に通信できる回数。無料プランは 50。有料プランにしたら上げる */
+  SUBREQUEST_LIMIT?: string;
   ALLOWED_ORIGINS?: string;
 }
 
 export type Rest = ReturnType<typeof rest>;
 
-export function rest(env: Env) {
+/** f: 通信に使う fetch。Budget.fetch を渡すと、通信の回数が数えられる */
+export function rest(env: Env, f: Fetch = fetch) {
   const key = env.SUPABASE_SECRET_KEY;
   if (!env.SUPABASE_URL || !key) throw new Error('SUPABASE_URL と SUPABASE_SECRET_KEY を設定してください');
   // 新しい形式の鍵（sb_secret_...）は apikey ヘッダーだけで送る。古い形式（JWT）は Authorization にも入れる
   const auth: Record<string, string> = key.startsWith('sb_') ? { apikey: key } : { apikey: key, Authorization: `Bearer ${key}` };
 
   async function call(method: string, path: string, body?: unknown, prefer?: string): Promise<Response> {
-    const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
+    const res = await f(`${env.SUPABASE_URL}/rest/v1/${path}`, {
       method,
       headers: { ...auth, 'Content-Type': 'application/json', ...(prefer ? { Prefer: prefer } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
