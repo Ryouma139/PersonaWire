@@ -93,3 +93,16 @@ values ('NOTE', 'rss', 'note 節約マガジン', 'https://note.com/<ユーザ�
 ```
 
 止めるときは `active` を `false` にする。
+
+## 自動デプロイ
+
+GitHub の `main` に、`collector/` の変更をプッシュすると、Cloudflare の Workers Builds が自動で公開する。
+
+| 設定 | 値 |
+|---|---|
+| Root directory | `collector` |
+| Build command | （なし） |
+| Deploy command | `npx wrangler deploy` |
+| Build watch paths | `collector/*` |
+
+秘密情報（`SUPABASE_SECRET_KEY`、`NOTION_TOKEN`、`RUN_TOKEN`）は Worker に登録したものがそのまま使われる。GitHub にもビルド設定にも書かない。手元から公開するときは `npm run deploy`。

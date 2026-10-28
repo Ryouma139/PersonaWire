@@ -54,5 +54,21 @@ ts/
 
 ## 開発用のメモ
 
-- 初期データに戻す: ブラウザのコンソールで `PW.store.reset()`
-- 保存先: localStorage の `persona-wire:v2`。開発サーバーと JavaScript 版はブラウザ上の別のサイトとして扱われるため、保存データは共有されない。
+- 初期データに戻す: ブラウザのコンソールで `PW.store.reset()`。戻るのは有料配信・商品・Notion のサンプルだけで、DB の分は読み直す
+- 保存先: 有料配信・商品・Notion のサンプルだけ localStorage の `persona-wire:v4`。ペルソナ・記事・操作ログは Supabase
+
+## 公開と自動デプロイ
+
+公開先: https://persona-wire-admin.tryoma0227.workers.dev（Cloudflare の Worker `persona-wire-admin`。`dist/` を配信するだけ）
+
+GitHub の `main` に、`ts/` の変更をプッシュすると、Cloudflare の Workers Builds が自動でビルドして公開する。
+
+| 設定 | 値 |
+|---|---|
+| Root directory | `ts` |
+| Build command | `npm run build` |
+| Deploy command | `npx wrangler deploy` |
+| Build watch paths | `ts/*` |
+| Build variables | `VITE_SUPABASE_URL`、`VITE_SUPABASE_PUBLISHABLE_KEY`、`VITE_COLLECTOR_URL`（`.env.local` と同じ値。どれも公開してよい値） |
+
+`.env.local` は Git に入らないので、接続先を変えたときは Build variables も変える。手元から公開するときは `npm run deploy`。
