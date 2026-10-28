@@ -3,11 +3,14 @@ import { createClient, type Session } from '@supabase/supabase-js';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-if (!url || !key) throw new Error('ts/.env.local に VITE_SUPABASE_URL と VITE_SUPABASE_PUBLISHABLE_KEY を書いてください（.env.example を参照）');
+
+/** 接続先が無いままビルドされたとき、画面に出す説明。ここで止めると「読み込み中…」のまま固まるので、main.ts で表示する */
+export const configError = url && key ? null
+  : '接続先の設定（VITE_SUPABASE_URL と VITE_SUPABASE_PUBLISHABLE_KEY）がありません。開発中は ts/.env.local、公開版は ts/.env.production を確認してください';
 
 // PKCE: メールのリンクから戻るとき、トークンを URL の # ではなく ?code= で受け取る（# はハッシュルーターが使うため）。
 // そのため、リンクは送信を頼んだのと同じブラウザで開く必要がある
-export const supabase = createClient(url, key, { auth: { flowType: 'pkce' } });
+export const supabase = createClient(url || 'https://invalid.localhost', key || 'missing', { auth: { flowType: 'pkce' } });
 
 // メールのリンクを押したあとの戻り先（Supabase の Redirect URLs に登録が必要）
 const returnUrl = (): string => location.origin + location.pathname;

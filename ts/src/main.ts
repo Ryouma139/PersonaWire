@@ -2,7 +2,7 @@
 import './styles.css';
 import { store } from './store';
 import * as ui from './ui';
-import { auth, authMessage, ROLE_LABEL, type Member } from './auth';
+import { auth, authMessage, configError, ROLE_LABEL, type Member } from './auth';
 import type { View } from './types';
 import { dashboard } from './views/dashboard';
 import { inbox } from './views/inbox';
@@ -184,4 +184,5 @@ ui.byId('menu-btn').addEventListener('click', () => document.body.classList.togg
 ui.byId('scrim').addEventListener('click', () => document.body.classList.remove('nav-open'));
 
 document.body.classList.add('gated');
-auth.start(onAuth);
+if (configError) showGate(`<p class="gate-error">${ui.esc(configError)}</p>`);
+else auth.start(onAuth);

@@ -69,6 +69,6 @@ GitHub の `main` に、`ts/` の変更をプッシュすると、Cloudflare の
 | Build command | `npm run build` |
 | Deploy command | `npx wrangler deploy` |
 | Build watch paths | `ts/*` |
-| Build variables | `VITE_SUPABASE_URL`、`VITE_SUPABASE_PUBLISHABLE_KEY`、`VITE_COLLECTOR_URL`（`.env.local` と同じ値。どれも公開してよい値） |
+| Build variables | 不要 |
 
-`.env.local` は Git に入らないので、接続先を変えたときは Build variables も変える。手元から公開するときは `npm run deploy`。
+公開版の接続先は `ts/.env.production` に書き、Git に入れている（どれも公開してよい値）。`.env.local` は Git に入らないため、Cloudflare の自動ビルドでは使えない。接続先を変えたときは `.env.production` を直してプッシュする。手元から公開するときは `npm run deploy`。
