@@ -37,10 +37,20 @@ function render(root: HTMLElement): void {
   const mrr = activePlans.reduce((a, d) => a + d.subscribers * d.price, 0);
   const clicks = s.products.reduce((a, p) => a + p.clicks, 0);
 
-  // 当日分は実データで上書き
-  const daily = s.daily.map((d, i) => (i === s.daily.length - 1
-    ? { ...d, news: recent.filter((x) => x.type === 'news').length, sns: recent.filter((x) => x.type === 'sns').length, adopted: recent.filter((x) => x.verdict === 'adopt').length }
-    : d));
+  // 直近7日（今日を含む）を、記事の収集日ごとに数える
+  const daily: DailyStat[] = Array.from({ length: 7 }, (_, k) => {
+    const day = new Date();
+    day.setHours(0, 0, 0, 0);
+    day.setDate(day.getDate() - (6 - k));
+    const next = day.getTime() + 864e5;
+    const inDay = s.items.filter((i) => { const t = new Date(i.collectedAt).getTime(); return t >= day.getTime() && t < next; });
+    return {
+      d: ui.fmtDate(day.toISOString(), false),
+      news: inDay.filter((x) => x.type === 'news').length,
+      sns: inDay.filter((x) => x.type === 'sns').length,
+      adopted: inDay.filter((x) => x.verdict === 'adopt').length,
+    };
+  });
 
   const upcoming = s.issues.filter((x) => x.status !== 'sent').sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt)).slice(0, 4);
 
@@ -105,7 +115,7 @@ function render(root: HTMLElement): void {
 
     <section class="card">
       <div class="card-head"><h2>アクティビティ</h2></div>
-      <ul class="timeline">${s.activity.slice(0, 8).map((a) => `<li><time>${ui.fmtDate(a.at)}</time><span>${ui.esc(a.text)}</span></li>`).join('')}</ul>
+      ${s.activity.length ? `<ul class="timeline">${s.activity.slice(0, 8).map((a) => `<li><time>${ui.fmtDate(a.at)}</time><span>${a.who ? `<b>${ui.esc(a.who)}</b> ` : ''}${ui.esc(a.text)}</span></li>`).join('')}</ul>` : '<p class="empty">まだ操作の記録はありません</p>'}
     </section>`;
 }
 

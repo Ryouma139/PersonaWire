@@ -90,6 +90,25 @@ code { font-size: 12px; background: var(--surface-2); padding: 1px 6px; border-r
 .sync.off .dot { background: var(--text-3); }
 @keyframes pulse { 50% { opacity: .3; } }
 
+.account { display: flex; align-items: center; gap: 8px; padding: 10px 8px 0; margin-top: 8px; border-top: 1px solid var(--border); }
+.account-who { flex: 1; min-width: 0; }
+.account-who strong { display: block; font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-who small { display: block; font-size: 11px; color: var(--text-2); }
+
+/* ---------- ログインの関門 ---------- */
+.gate[hidden], body.gated .app { display: none; }
+.gate { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.gate-loading { color: var(--text-2); }
+.gate-card { width: 100%; max-width: 380px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 24px; }
+.gate-card .brand { padding: 0 0 18px; }
+.gate-card p { margin: 0 0 14px; }
+.gate-card .btn { width: 100%; justify-content: center; }
+.gate-form { display: flex; flex-direction: column; gap: 10px; }
+.gate-form .field { margin: 0; }
+.gate-form p { margin: 0; }
+.gate-error { color: var(--danger); font-size: 13px; }
+.gate-info { color: var(--ok); font-size: 13px; }
+
 .main { flex: 1; min-width: 0; padding: 28px 32px 56px; max-width: 1280px; }
 .mobile-bar { display: none; }
 .sidebar-scrim { display: none; }
@@ -98,7 +117,6 @@ code { font-size: 12px; background: var(--surface-2); padding: 1px 6px; border-r
 .page-head h1 { font-size: 22px; font-weight: 700; letter-spacing: .3px; }
 .page-head p { margin: 2px 0 0; color: var(--text-2); font-size: 13px; }
 .page-actions { display: flex; gap: 10px; align-items: center; }
-.sample-tag { font-family: var(--mono); font-size: 11px; color: var(--text-2); border: 1px dashed var(--border); padding: 3px 10px; border-radius: 4px; }
 
 /* ---------- 部品 ---------- */
 .btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--surface); padding: 7px 14px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 13px; white-space: nowrap; transition: background .12s, border-color .12s; }

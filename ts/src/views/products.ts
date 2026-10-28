@@ -23,7 +23,7 @@ function edit(pr?: Product): void {
         <div class="check-row">${s.personas.map((p) => `<label class="check"><input type="checkbox" name="persona_${p.id}" ${pr?.personaIds.includes(p.id) ? 'checked' : ''}> ${ui.esc(p.code + ' ' + p.name)}</label>`).join('')}</div>
       </fieldset>`,
     onSubmit: (v) => {
-      if (!v.name.trim() || !/^https?:\/\/.+/.test(v.url)) { ui.toast('商品名と正しいURLを入力してください', 'warn'); return false; }
+      if (!v.name.trim() || !ui.safeUrl(v.url)) { ui.toast('商品名と正しいURLを入力してください', 'warn'); return false; }
       const data = { name: v.name, url: v.url, category: v.category, price: Number(v.price), personaIds: s.personas.filter((p) => v['persona_' + p.id]).map((p) => p.id) };
       store.update((st) => {
         if (pr) Object.assign(pr, data);

@@ -1,7 +1,8 @@
 /* 収集・AI判定 */
-import { store } from '../store';
+import { isUsable, store } from '../store';
+import { db } from '../db';
 import * as ui from '../ui';
-import type { Item, ItemStatus, ItemType, NotionDbName, Persona, PersonaId, View } from '../types';
+import type { Issue, Item, ItemStatus, ItemType, NotionDbName, Persona, PersonaId, View } from '../types';
 
 interface Filters {
   persona: PersonaId | '';
@@ -12,7 +13,7 @@ interface Filters {
 
 const f: Filters = { persona: '', status: '', type: '', threshold: 0 };
 let selectedId: string | null = null;
-let collecting = false;
+let reloading = false;
 
 const NOTION_DBS: NotionDbName[] = ['articles', 'sns_posts', 'ideas'];
 const STATUS_KEYS = Object.keys(ui.STATUS) as ItemStatus[];
@@ -22,7 +23,7 @@ function filtered(items: Item[]): Item[] {
     .filter((i) => !f.status || i.status === f.status)
     .filter((i) => !f.type || i.type === f.type)
     .filter((i) => {
-      const score = f.persona ? i.scores[f.persona] ?? 0 : Math.max(...Object.values(i.scores));
+      const score = f.persona ? i.scores[f.persona] ?? 0 : Math.max(0, ...Object.values(i.scores));
       return score >= f.threshold;
     })
     .sort((a, b) => (f.persona ? (b.scores[f.persona] ?? 0) - (a.scores[f.persona] ?? 0) : 0) || b.collectedAt.localeCompare(a.collectedAt));
@@ -52,7 +53,8 @@ function detail(it: Item | undefined): string {
   if (!it) return '';
   const s = store.state;
   const sorted = [...s.personas].sort((a, b) => (it.scores[b.id] ?? 0) - (it.scores[a.id] ?? 0));
-  const drafts = s.issues.filter((x) => x.status !== 'sent');
+  const drafts = isUsable(it.status) ? s.issues.filter((x) => x.status !== 'sent') : [];
+  const href = ui.safeUrl(it.url);
   return `
     <section class="card detail">
       <div class="detail-top">
@@ -60,7 +62,7 @@ function detail(it: Item | undefined): string {
         ${ui.badge(ui.STATUS, it.status)}
       </div>
       <h2 class="detail-title">${ui.esc(it.title)}</h2>
-      <div class="meta">${ui.kindTag(it.kind)}<span>${ui.esc(it.source)} · ${ui.fmtDate(it.collectedAt)}</span><a class="link" href="${ui.esc(it.url)}" target="_blank" rel="noopener">元記事 ↗</a></div>
+      <div class="meta">${ui.kindTag(it.kind)}<span>${ui.esc(it.source)} · ${ui.fmtDate(it.collectedAt)}</span>${href ? `<a class="link" href="${ui.esc(href)}" target="_blank" rel="noopener noreferrer">元記事 ↗</a>` : '<span class="muted">元記事のURLが不正です</span>'}</div>
       <p class="detail-excerpt">${ui.esc(it.excerpt)}</p>
 
       <h3 class="label">ペルソナ適合度と判定理由</h3>
@@ -102,7 +104,6 @@ function detail(it: Item | undefined): string {
         ${it.status === 'published' ? `<button class="btn" data-act="status" data-to="approved" data-id="${it.id}">非公開に戻す</button>` : ''}
         ${it.status !== 'pending' ? `<button class="btn" data-act="status" data-to="pending" data-id="${it.id}">要確認に戻す</button>` : ''}
         ${it.status !== 'rejected' ? `<button class="btn btn-ghost-danger" data-act="status" data-to="rejected" data-id="${it.id}">却下</button>` : ''}
-        <button class="btn btn-quiet" data-act="rejudge" data-id="${it.id}">再判定</button>
         ${drafts.length ? `
         <span class="add-issue">
           <select id="issue-pick">${drafts.map((x) => `<option value="${x.id}">${ui.esc(store.delivery(x.deliveryId)?.name ?? '')} #${x.no}${x.itemIds.includes(it.id) ? '（追加済み）' : ''}</option>`).join('')}</select>
@@ -123,7 +124,7 @@ function render(root: HTMLElement): void {
 
   root.innerHTML = `
     ${ui.pageHead('収集・AI判定', `NewsとSNSから集めた記事を、${s.personas.length}つのペルソナとの適合度で振り分けます`,
-      `<span class="sample-tag">サンプルデータ</span><button class="btn" data-act="collect" ${collecting ? 'disabled' : ''}>${collecting ? '収集中…' : '収集を実行'}</button>`)}
+      `<button class="btn" data-act="reload" ${reloading ? 'disabled' : ''}>${reloading ? '読み込み中…' : '再読み込み'}</button>`)}
 
     <div class="filters">
       <select data-filter="persona"><option value="">すべてのペルソナ</option>${s.personas.map((p) => `<option value="${p.id}" ${f.persona === p.id ? 'selected' : ''}>${ui.esc(p.code)} ${ui.esc(p.name)}</option>`).join('')}</select>
@@ -144,7 +145,7 @@ function render(root: HTMLElement): void {
           </div>
           ${spark(i, s.personas)}
         </article>`;
-      }).join('') : '<p class="empty">条件に合う記事はありません</p>'}
+      }).join('') : `<p class="empty">${s.items.length ? '条件に合う記事はありません' : '記事はまだありません。Supabase の articles 表に追加すると、ここに表示されます'}</p>`}
     </section>
 
     ${detail(sel)}`;
@@ -154,17 +155,26 @@ function render(root: HTMLElement): void {
     if (!el) return;
     const act = el.dataset.act, id = el.dataset.id ?? '';
     if (act === 'select') { selectedId = id; history.replaceState(null, '', '#inbox/' + id); render(root); }
-    else if (act === 'collect') collect();
+    else if (act === 'reload') reload();
     else if (act === 'status') setStatus(id, el.dataset.to as ItemStatus);
-    else if (act === 'rejudge') rejudge(id);
     else if (act === 'to-issue') addToIssue(id, ui.byId<HTMLSelectElement>('issue-pick').value);
   };
   root.onchange = (e) => {
     const el = ui.fieldTarget(e);
     const it = store.item(el.dataset.id);
-    if (el.dataset.act === 'assign' && it) store.update(() => { it.persona = el.value || null; });
-    else if (el.dataset.act === 'notiondb' && it) store.update(() => { it.notionDb = el.value as NotionDbName; });
-    else if (el.dataset.act === 'comment' && it) { store.update(() => { it.comment = el.value; }); ui.toast('コメントを保存しました'); }
+    if (el.dataset.act === 'assign' && it) {
+      const persona = el.value || null;
+      store.update(() => { it.persona = persona; });
+      void store.commit(db.updateArticle(it.id, { persona }));
+    } else if (el.dataset.act === 'notiondb' && it) {
+      const notionDb = el.value as NotionDbName;
+      store.update(() => { it.notionDb = notionDb; });
+      void store.commit(db.updateArticle(it.id, { notionDb }));
+    } else if (el.dataset.act === 'comment' && it) {
+      const comment = el.value;
+      store.update(() => { it.comment = comment; });
+      void store.commit(db.updateArticle(it.id, { comment }), 'コメントを保存しました');
+    }
     else if (el.dataset.filter) { setFilter(el.dataset.filter, el.value); render(root); }
   };
   root.oninput = (e) => {
@@ -183,46 +193,35 @@ function setFilter(key: string, value: string): void {
 function setStatus(id: string, to: ItemStatus): void {
   const it = store.item(id);
   if (!it) return;
-  store.update(() => {
-    it.status = to;
-    store.log(`#${it.no} を「${ui.STATUS[to].label}」に変更`);
+  const label = ui.STATUS[to].label;
+  let removed: Issue[] = [];
+  store.update(() => { removed = store.setItemStatus(it, to); });
+  void store.commit(db.updateArticle(it.id, { status: to })).then((ok) => {
+    if (!ok) return;
+    store.log(`#${it.no} を「${label}」に変更`, 'article.' + to);
+    if (removed.length) ui.toast(`「${label}」にし、未配信の配信号 ${removed.map((x) => '#' + x.no).join('、')} から外しました`, 'warn');
+    else ui.toast(`「${label}」にしました`);
   });
-  ui.toast(`「${ui.STATUS[to].label}」にしました`);
-}
-
-function rejudge(id: string): void {
-  const it = store.item(id);
-  if (!it) return;
-  store.update(() => {
-    for (const k of Object.keys(it.scores)) {
-      it.scores[k] = Math.max(0, Math.min(100, it.scores[k] + Math.round((Math.random() - 0.5) * 12)));
-    }
-    Object.assign(it, store.judge(it));
-  });
-  ui.toast('AIが再判定しました');
 }
 
 function addToIssue(itemId: string, issueId: string): void {
+  const it = store.item(itemId);
   const x = store.state.issues.find((i) => i.id === issueId);
-  if (!x) return;
+  if (!it || !x) return;
+  if (!isUsable(it.status)) { ui.toast('配信号に追加できるのは、採用済みか公開中の記事だけです', 'warn'); return; }
   if (x.itemIds.includes(itemId)) { ui.toast('この配信号には追加済みです', 'warn'); return; }
   store.update(() => { x.itemIds.push(itemId); });
   ui.toast(`#${x.no} に追加しました`);
 }
 
-function collect(): void {
-  collecting = true;
-  store.update(() => {}); // ボタンを「収集中…」に切り替える
-  setTimeout(() => {
-    const added = store.collect(3 + Math.floor(Math.random() * 3));
-    collecting = false;
-    selectedId = added[0]?.id ?? selectedId;
-    store.update((s) => {
-      s.items.unshift(...added);
-      store.log(`${added.length} 件を収集し、AIが判定（採用推奨 ${added.filter((a) => a.verdict === 'adopt').length} 件）`);
-    });
-    ui.toast(`${added.length} 件の新着を収集しました`);
-  }, 1200);
+// DB から読み直す（Supabase の Table Editor で追加・変更した記事を反映する）
+function reload(): void {
+  reloading = true;
+  store.update(() => {}); // ボタンを「読み込み中…」に切り替える
+  store.reload()
+    .then(() => ui.toast('最新の内容を読み込みました'))
+    .catch((e: unknown) => ui.toast('読み込めませんでした: ' + (e instanceof Error ? e.message : String(e)), 'warn'))
+    .finally(() => { reloading = false; store.update(() => {}); });
 }
 
 export const inbox: View = { render };

@@ -5,6 +5,16 @@ export const esc = (s: unknown): string =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 const pad = (n: number): string => String(n).padStart(2, '0');
 
+/** 外部 URL を href に入れてよい形にする。http(s) 以外（javascript: など）や不正な URL は null */
+export function safeUrl(url: string | null | undefined): string | null {
+  try {
+    const u = new URL(String(url ?? ''));
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
 export function fmtDate(iso: string | null | undefined, withTime = true): string {
   if (!iso) return '—';
   const d = new Date(iso);

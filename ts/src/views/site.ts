@@ -1,5 +1,6 @@
 /* 公開サイト（プレビュー） */
 import { store } from '../store';
+import { db } from '../db';
 import * as ui from '../ui';
 import type { PersonaId, View } from '../types';
 
@@ -81,8 +82,9 @@ function render(root: HTMLElement): void {
     else if (el.dataset.act === 'unpublish') {
       const it = store.item(el.dataset.id);
       if (!it) return;
-      store.update(() => { it.status = 'approved'; store.log('記事を非公開に戻しました'); });
-      ui.toast('非公開にしました（採用済みに戻しました）');
+      store.update(() => { store.setItemStatus(it, 'approved'); });
+      void store.commit(db.updateArticle(it.id, { status: 'approved' }), '非公開にしました（採用済みに戻しました）')
+        .then((ok) => { if (ok) store.log(`#${it.no} を非公開に戻しました`, 'article.unpublish'); });
     }
   };
 }

@@ -1,5 +1,5 @@
 /* 有料配信 */
-import { store, uid } from '../store';
+import { isUsable, store, uid } from '../store';
 import * as ui from '../ui';
 import type { Delivery, Issue, IssueStatus, View } from '../types';
 
@@ -12,9 +12,6 @@ const ISSUE_STATUS: Record<IssueStatus, ui.BadgeDef> = {
   sent: { label: '配信済み', cls: 'muted' },
 };
 const CHANNELS = ['メール', 'LINE', 'Discord', 'note メンバーシップ'];
-
-/** 配信号に入れられる記事（採用済み・公開中） */
-const isUsable = (status: string): boolean => status === 'approved' || status === 'published';
 
 function planForm(d?: Delivery): string {
   const s = store.state;

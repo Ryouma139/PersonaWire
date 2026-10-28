@@ -129,6 +129,8 @@ export interface DailyStat {
 export interface Activity {
   at: string;
   text: string;
+  /** 操作した人の名前。自動処理は「システム」 */
+  who?: string;
 }
 
 export interface SiteConfig {
@@ -143,7 +145,6 @@ export interface AppState {
   issues: Issue[];
   products: Product[];
   notion: NotionState;
-  daily: DailyStat[];
   activity: Activity[];
   site: SiteConfig;
 }

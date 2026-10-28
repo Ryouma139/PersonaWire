@@ -1,5 +1,6 @@
 /* ペルソナ */
-import { store, uid } from '../store';
+import { store } from '../store';
+import { db, dbMessage } from '../db';
 import * as ui from '../ui';
 import type { Persona, View } from '../types';
 
@@ -35,32 +36,49 @@ function edit(p?: Persona): void {
         code: v.code, name: v.name, handle: v.handle, description: v.description, tone: v.tone, color: v.color,
         keywords: splitWords(v.keywords), ngWords: splitWords(v.ngWords), threshold: Number(v.threshold),
       };
-      store.update((s) => {
-        if (p) {
-          Object.assign(p, data);
-          // しきい値変更を既存アイテムの判定に反映
-          s.items.forEach((it) => { if (it.status === 'pending') Object.assign(it, store.judge(it)); });
-        } else {
-          const np: Persona = { id: uid('p'), active: true, ...data };
-          s.personas.push(np);
-          s.items.forEach((it) => { it.scores[np.id] = Math.floor(Math.random() * 60); });
-          store.log(`ペルソナ「${np.name}」を追加`);
-        }
-      });
-      ui.toast('保存しました');
+      if (p) void save(p, data);
+      else {
+        db.insertPersona({ active: true, ...data })
+          .then((np) => {
+            store.update((s) => { s.personas.push(np); });
+            store.log(`ペルソナ「${np.name}」を追加`, 'persona.create');
+            ui.toast('保存しました');
+          })
+          .catch((e: unknown) => ui.toast('保存できませんでした: ' + dbMessage(e), 'warn'));
+      }
     },
   });
   const range = form.querySelector<HTMLInputElement>('input[name="threshold"]');
   range?.addEventListener('input', () => { ui.byId('th-out').textContent = range.value; });
 }
 
+/** 既存のペルソナを保存し、しきい値などの変更を要確認の記事の判定に反映する */
+async function save(edited: Persona, data: Partial<Persona>): Promise<void> {
+  // 編集中に DB を読み直していても、今のペルソナに反映する
+  const p = store.persona(edited.id) ?? edited;
+  store.update(() => { Object.assign(p, data); });
+  if (!(await store.commit(db.updatePersona(p), '保存しました'))) return;
+  store.log(`ペルソナ「${p.name}」を編集`, 'persona.update');
+  const changed = store.state.items.filter((it) => {
+    if (it.status !== 'pending') return false;
+    const j = store.judge(it);
+    return j.verdict !== it.verdict || j.persona !== it.persona;
+  });
+  if (!changed.length) return;
+  store.update(() => { for (const it of changed) Object.assign(it, store.judge(it)); });
+  await store.commit(Promise.all(changed.map((it) => db.updateArticle(it.id, { verdict: it.verdict, persona: it.persona }))),
+    `要確認の記事 ${changed.length} 件を判定し直しました`);
+}
+
 function remove(p: Persona): void {
-  ui.confirmDialog('ペルソナを削除', `「${p.name}」を削除します。割り当て済みの記事は未割当になります。`, () => {
+  ui.confirmDialog('ペルソナを削除', `「${p.name}」を削除します。割り当て済みの記事は未割当になり、この人のスコアも消えます。`, () => {
     store.update((s) => {
       s.personas = s.personas.filter((x) => x.id !== p.id);
       s.items.forEach((it) => { delete it.scores[p.id]; if (it.persona === p.id) it.persona = null; });
       s.products.forEach((pr) => { pr.personaIds = pr.personaIds.filter((id) => id !== p.id); });
-      store.log(`ペルソナ「${p.name}」を削除`);
+    });
+    void store.commit(db.deletePersona(p.id), '削除しました').then((ok) => {
+      if (ok) store.log(`ペルソナ「${p.name}」を削除`, 'persona.delete');
     });
   }, '削除する');
 }
@@ -69,6 +87,7 @@ function render(root: HTMLElement): void {
   const s = store.state;
   root.innerHTML = `
     ${ui.pageHead('ペルソナ', '読者像ごとに関心キーワードと採用しきい値を設定し、AI判定の基準にします', `<button class="btn btn-primary" data-act="new">＋ ペルソナを追加</button>`)}
+    ${s.personas.length ? '' : '<p class="empty">ペルソナはまだありません。「＋ ペルソナを追加」か、Supabase の personas 表に追加してください</p>'}
     <div class="persona-grid">
       ${s.personas.map((p) => {
         const mine = s.items.filter((i) => i.persona === p.id);
@@ -112,7 +131,7 @@ function render(root: HTMLElement): void {
     if (el.dataset.act === 'toggle' && p) {
       const on = ui.isChecked(el);
       store.update(() => { p.active = on; });
-      ui.toast(on ? 'AI判定で使用します' : 'AI判定から外しました');
+      void store.commit(db.updatePersona(p), on ? 'AI判定で使用します' : 'AI判定から外しました');
     }
   };
 }
