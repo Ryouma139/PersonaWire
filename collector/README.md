@@ -92,7 +92,18 @@ values ('NOTE', 'rss', 'note 節約マガジン', 'https://note.com/<ユーザ�
         '{"category": "節約", "category_personas": {"節約": ["P04"]}}');
 ```
 
+```sql
+-- YouTube のチャンネル（RSS。API キーは不要。新しい動画 15 本までが対象）
+insert into public.sources (kind, method, name, target, options)
+values ('YOUTUBE', 'rss', 'YouTube <チャンネル名>', 'https://www.youtube.com/feeds/videos.xml?channel_id=<UC で始まるチャンネル ID>',
+        '{"category": "テクノロジー", "category_personas": {"テクノロジー": ["P01"]}}');
+```
+
+チャンネル ID は、YouTube のチャンネルページで「概要」→「チャンネルを共有」→「チャンネル ID をコピー」で取れる（`UC` で始まる 24 文字）。
+
 止めるときは `active` を `false` にする。
+
+X は RSS が無く、読み取りには X API の有料プランが必要なため、まだ対応していない。
 
 ## 自動デプロイ
 

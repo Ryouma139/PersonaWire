@@ -61,7 +61,8 @@ export async function rssCandidates(source: Source): Promise<Candidate[]> {
         url,
         sourceName: source.name || str(xml.feed.title),
         category,
-        excerpt: plain(str((e.summary ?? e.content) as Node)),
+        // YouTube のチャンネル RSS は、動画の説明文を media:group の中に入れている
+        excerpt: plain(str((e.summary ?? e.content ?? (e['media:group'] as Record<string, Node> | undefined)?.['media:description']) as Node)),
         collectedAt: iso(str((e.published ?? e.updated) as Node), now),
         kind: kindOf(url, source.kind),
       };
