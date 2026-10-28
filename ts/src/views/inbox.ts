@@ -1,8 +1,9 @@
 /* 収集・AI判定 */
 import { isUsable, store } from '../store';
-import { db } from '../db';
+import { db, dbMessage, type ArticleFields } from '../db';
+import { auth } from '../auth';
 import * as ui from '../ui';
-import type { Issue, Item, ItemStatus, ItemType, NotionDbName, Persona, PersonaId, View } from '../types';
+import type { Issue, Item, ItemStatus, ItemType, NotionDbName, Persona, PersonaId, SourceKind, View } from '../types';
 
 interface Filters {
   persona: PersonaId | '';
@@ -16,6 +17,7 @@ let selectedId: string | null = null;
 let reloading = false;
 
 const NOTION_DBS: NotionDbName[] = ['articles', 'sns_posts', 'ideas'];
+const KINDS: SourceKind[] = ['NEWS', 'YOUTUBE', 'NOTE', 'X', 'THREADS'];
 const STATUS_KEYS = Object.keys(ui.STATUS) as ItemStatus[];
 
 function filtered(items: Item[]): Item[] {
@@ -104,6 +106,8 @@ function detail(it: Item | undefined): string {
         ${it.status === 'published' ? `<button class="btn" data-act="status" data-to="approved" data-id="${it.id}">非公開に戻す</button>` : ''}
         ${it.status !== 'pending' ? `<button class="btn" data-act="status" data-to="pending" data-id="${it.id}">要確認に戻す</button>` : ''}
         ${it.status !== 'rejected' ? `<button class="btn btn-ghost-danger" data-act="status" data-to="rejected" data-id="${it.id}">却下</button>` : ''}
+        <button class="btn btn-quiet" data-act="edit" data-id="${it.id}">編集</button>
+        ${auth.isAdmin() ? `<button class="btn btn-quiet" data-act="delete" data-id="${it.id}">削除</button>` : ''}
         ${drafts.length ? `
         <span class="add-issue">
           <select id="issue-pick">${drafts.map((x) => `<option value="${x.id}">${ui.esc(store.delivery(x.deliveryId)?.name ?? '')} #${x.no}${x.itemIds.includes(it.id) ? '（追加済み）' : ''}</option>`).join('')}</select>
@@ -124,7 +128,7 @@ function render(root: HTMLElement): void {
 
   root.innerHTML = `
     ${ui.pageHead('収集・AI判定', `NewsとSNSから集めた記事を、${s.personas.length}つのペルソナとの適合度で振り分けます`,
-      `<button class="btn" data-act="reload" ${reloading ? 'disabled' : ''}>${reloading ? '読み込み中…' : '再読み込み'}</button>`)}
+      `<button class="btn" data-act="reload" ${reloading ? 'disabled' : ''}>${reloading ? '読み込み中…' : '再読み込み'}</button><button class="btn btn-primary" data-act="new">＋ 記事を追加</button>`)}
 
     <div class="filters">
       <select data-filter="persona"><option value="">すべてのペルソナ</option>${s.personas.map((p) => `<option value="${p.id}" ${f.persona === p.id ? 'selected' : ''}>${ui.esc(p.code)} ${ui.esc(p.name)}</option>`).join('')}</select>
@@ -139,7 +143,7 @@ function render(root: HTMLElement): void {
         return `
         <article class="row ${i.id === selectedId ? 'selected' : ''}" data-act="select" data-id="${i.id}">
           <div class="row-body">
-            <div class="meta">${ui.kindTag(i.kind)}<span>${ui.esc(i.source)}</span><span class="mono">${ui.fmtDate(i.collectedAt)}</span>${ui.badge(ui.STATUS, i.status)}</div>
+            <div class="meta">${ui.kindTag(i.kind)}<span>${ui.esc(i.source)}</span><span class="mono">${ui.fmtDate(i.collectedAt)}</span>${ui.badge(ui.STATUS, i.status)}${i.verdict ? '' : '<span class="badge badge-muted">AI判定待ち</span>'}</div>
             <h3>${ui.esc(i.title)}</h3>
             <div class="meta"><span>主担当</span>${ui.personaChip(p)}</div>
           </div>
@@ -156,6 +160,9 @@ function render(root: HTMLElement): void {
     const act = el.dataset.act, id = el.dataset.id ?? '';
     if (act === 'select') { selectedId = id; history.replaceState(null, '', '#inbox/' + id); render(root); }
     else if (act === 'reload') reload();
+    else if (act === 'new') edit();
+    else if (act === 'edit') edit(store.item(id));
+    else if (act === 'delete') { const it = store.item(id); if (it) remove(it); }
     else if (act === 'status') setStatus(id, el.dataset.to as ItemStatus);
     else if (act === 'to-issue') addToIssue(id, ui.byId<HTMLSelectElement>('issue-pick').value);
   };
@@ -212,6 +219,93 @@ function addToIssue(itemId: string, issueId: string): void {
   if (x.itemIds.includes(itemId)) { ui.toast('この配信号には追加済みです', 'warn'); return; }
   store.update(() => { x.itemIds.push(itemId); });
   ui.toast(`#${x.no} に追加しました`);
+}
+
+// ---------- 記事の追加・編集・削除 ----------
+
+function edit(it?: Item): void {
+  const s = store.state;
+  const kind = it?.kind ?? 'NEWS';
+  ui.modal({
+    title: it ? `記事 #${it.no} を編集` : '記事を追加',
+    wide: true,
+    body: `
+      <label class="field"><span>見出し</span><input name="title" required value="${ui.esc(it?.title ?? '')}"></label>
+      <div class="field-row">
+        <label class="field field-xs"><span>種別</span><select name="kind">${KINDS.map((k) => `<option ${k === kind ? 'selected' : ''}>${k}</option>`).join('')}</select></label>
+        <label class="field"><span>媒体名・アカウント</span><input name="source" required value="${ui.esc(it?.source ?? '')}" placeholder="例：テック経済ニュース、@account"></label>
+        <label class="field"><span>カテゴリ</span><input name="category" value="${ui.esc(it?.category ?? '')}" placeholder="例：テック"></label>
+      </div>
+      <label class="field"><span>元記事の URL</span><input name="url" type="url" required value="${ui.esc(it?.url ?? 'https://')}"></label>
+      <label class="field"><span>要約</span><textarea name="excerpt" rows="2">${ui.esc(it?.excerpt ?? '')}</textarea></label>
+      <h3 class="label">ペルソナ別の適合度（0〜100）と判定理由</h3>
+      ${s.personas.map((p) => `
+      <div class="field-row">
+        <label class="field field-xs"><span>${ui.esc(p.code)}</span><input name="score_${p.id}" type="number" min="0" max="100" value="${it?.scores[p.id] ?? 0}"></label>
+        <label class="field"><span>${ui.esc(p.name)} の判定理由（カンマ区切り）</span><input name="reasons_${p.id}" value="${ui.esc((it?.reasons[p.id] ?? []).join(', '))}"></label>
+      </div>`).join('') || '<p class="muted">ペルソナがまだありません。スコアはペルソナを追加してから入れられます</p>'}`,
+    onSubmit: (v) => {
+      const fields: ArticleFields = {
+        title: v.title.trim(), kind: v.kind as SourceKind, source: v.source.trim(), category: v.category.trim(), url: v.url.trim(), excerpt: v.excerpt.trim(),
+      };
+      if (!fields.title || !fields.source) { ui.toast('見出しと媒体名を入力してください', 'warn'); return false; }
+      if (!ui.safeUrl(fields.url)) { ui.toast('URL は http:// か https:// で始めてください', 'warn'); return false; }
+      const scores: Record<PersonaId, number> = {};
+      const reasons: Record<PersonaId, string[]> = {};
+      for (const p of s.personas) {
+        const n = Number(v['score_' + p.id]);
+        if (!Number.isInteger(n) || n < 0 || n > 100) { ui.toast(`${p.code} のスコアは 0〜100 の整数で入力してください`, 'warn'); return false; }
+        scores[p.id] = n;
+        const r = ui.splitWords(v['reasons_' + p.id]);
+        if (r.length) reasons[p.id] = r;
+      }
+      if (it) saveEdit(it, fields, scores, reasons);
+      else void create(fields, scores, reasons);
+    },
+  });
+}
+
+async function create(fields: ArticleFields, scores: Record<PersonaId, number>, reasons: Record<PersonaId, string[]>): Promise<void> {
+  const j = store.judge({ scores });
+  try {
+    const id = await db.insertArticle({ ...fields, verdict: j.verdict, persona: j.persona });
+    await db.saveScores(id, scores, reasons);
+    selectedId = id;
+    await store.reload();
+    store.log(`記事「${fields.title}」を追加`, 'article.create');
+    ui.toast('追加しました');
+  } catch (e) {
+    ui.toast('追加できませんでした: ' + dbMessage(e), 'warn');
+    await store.reload().catch(() => {});
+  }
+}
+
+// スコアから判定し直す。主担当は、手で決めてあればそのまま
+function saveEdit(it: Item, fields: ArticleFields, scores: Record<PersonaId, number>, reasons: Record<PersonaId, string[]>): void {
+  const j = store.judge({ scores });
+  const persona = it.persona ?? j.persona;
+  store.update(() => {
+    Object.assign(it, fields, { type: fields.kind === 'NEWS' ? 'news' : 'sns', scores, reasons, verdict: j.verdict, persona });
+  });
+  void store.commit(Promise.all([
+    db.updateArticle(it.id, { ...fields, verdict: j.verdict, persona }),
+    db.saveScores(it.id, scores, reasons),
+  ]), '保存しました').then((ok) => {
+    if (ok) store.log(`記事 #${it.no} を編集`, 'article.update');
+  });
+}
+
+function remove(it: Item): void {
+  ui.confirmDialog('記事を削除', `#${it.no}「${it.title}」を削除します。ペルソナ別のスコアも一緒に消えます。`, () => {
+    if (selectedId === it.id) selectedId = null;
+    store.update((s) => {
+      s.items = s.items.filter((x) => x.id !== it.id);
+      for (const x of s.issues) x.itemIds = x.itemIds.filter((id) => id !== it.id);
+    });
+    void store.commit(db.deleteArticle(it.id), '削除しました').then((ok) => {
+      if (ok) store.log(`記事 #${it.no}「${it.title}」を削除`, 'article.delete');
+    });
+  }, '削除する');
 }
 
 // DB から読み直す（Supabase の Table Editor で追加・変更した記事を反映する）

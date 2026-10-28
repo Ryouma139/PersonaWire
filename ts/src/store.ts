@@ -16,6 +16,9 @@ export const uid = (p: string): string => p + Math.random().toString(36).slice(2
 /** 配信号に入れられる記事の状態（採用済み・公開中） */
 export const isUsable = (status: ItemStatus): boolean => status === 'approved' || status === 'published';
 
+/** AI 判定のスコアが 1 つでもあるか。無ければ判定待ち */
+export const hasScores = (it: Pick<Item, 'scores'>): boolean => Object.keys(it.scores).length > 0;
+
 // AI 判定: 最も高いペルソナスコアとしきい値から判定を出す
 function judgeWith(item: Pick<Item, 'scores'>, personas: Persona[]): { verdict: Verdict; persona: PersonaId | null } {
   let best: { id: PersonaId; score: number; threshold: number } | null = null;
@@ -141,9 +144,10 @@ export const store = {
   async reload(): Promise<void> {
     const { personas, items, activity } = await db.loadAll();
     state.personas = personas;
-    // AI 判定が空の記事（手で追加した記事など）は、スコアから判定して表示する（DB には書かない）
+    // AI 判定が空でもスコアがある記事（Table Editor で入れた記事など）は、スコアから判定して表示する（DB には書かない）。
+    // スコアが無い記事（バッチで取り込んだ直後）は、判定待ちのまま
     state.items = items.map((it) => {
-      if (it.verdict) return { ...it, verdict: it.verdict };
+      if (it.verdict || !hasScores(it)) return it;
       const j = judgeWith(it, personas);
       return { ...it, verdict: j.verdict, persona: it.persona ?? j.persona };
     });

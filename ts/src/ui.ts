@@ -31,7 +31,10 @@ export function relTime(iso: string): string {
   return fmtDate(iso);
 }
 
-export const yen = (n: number | null | undefined): string => '¥' + Number(n || 0).toLocaleString('ja-JP');
+/** 「a, b、c d」のような入力を、読点・カンマ・空白で区切って配列にする */
+export const splitWords = (v: string | undefined): string[] => String(v ?? '').split(/[,、\s]+/).map((x) => x.trim()).filter(Boolean);
+
+export const yen =(n: number | null | undefined): string => '¥' + Number(n || 0).toLocaleString('ja-JP');
 export const num = (n: number | null | undefined): string => Number(n || 0).toLocaleString('ja-JP');
 
 export interface BadgeDef {

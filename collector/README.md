@@ -1,0 +1,93 @@
+# Persona Wire 収集バッチ（Cloudflare Workers）
+
+収集先（Notion の news_link、RSS、note のマガジン）から新着を読み、Supabase の `articles` に「要確認・AI判定待ち」で登録します。改善計画の H3 です。
+
+## 動き
+
+1. 30 分ごと（`wrangler.jsonc` の `crons`）に動く。`POST /run` で手動でも動かせる。
+2. `sources` 表の有効な収集先を読む。
+   - **notion:** 親ページ（news_link）の下の日付ページ（`2026/10/28` など）のうち、`lookback_days` 日以内のものをたどり、その中の「記事一覧」データベースを読む。
+   - **rss:** RSS 2.0 か Atom を読む。note のマガジンは `https://note.com/<ユーザー>/m/<マガジンID>/rss`。
+3. 次の記事は取り込まない。
+   - URL が `http(s)` でない（H6）
+   - カテゴリが `exclude_categories` に入っている
+   - 見出しに、有効なペルソナ全員の NG ワードが入っている
+   - すでに `articles` にある（URL で判定）
+4. 新しい記事から順に、日本時間の 1 日あたり `DAILY_LIMIT`（100）件まで登録する。上限で漏れた記事は、翌日以降の実行で拾う（Notion は `lookback_days` の範囲内）。
+5. 実行結果を `collect_runs` に、登録があれば操作ログ（`activity_logs`、実行者は「システム」）に残す。
+
+| 記事の項目 | Notion（記事一覧） | RSS |
+|---|---|---|
+| 見出し | タイトル | title |
+| URL | 出典URL（空ならページの URL） | link |
+| 媒体名 | サイト | 収集先の名前 |
+| カテゴリ | カテゴリ | `options.category` |
+| 要約 | （なし） | description / summary（200 文字まで） |
+| 収集日時 | ページの作成日時 | pubDate / published |
+| 種別 | URL のドメインから判定（youtube.com → YOUTUBE、note.com → NOTE など） | 同じ |
+| 仮の主担当 | `category_personas` でカテゴリから決める | 同じ |
+
+## 初めて動かすとき
+
+### 1. DB を更新する
+
+Supabase の SQL Editor で [../supabase/migrations/20261029000000_collector.sql](../supabase/migrations/20261029000000_collector.sql) を実行する。news_link が収集先として登録される。
+
+### 2. Notion をつなぐ
+
+1. https://www.notion.so/my-integrations で内部インテグレーションを作り、トークンを控える。
+2. Notion で「news_link」ページを開き、右上の「…」→「接続」から、作ったインテグレーションを追加する（下の日付ページと記事一覧にも権限が及ぶ）。
+
+### 3. Supabase の Secret key を用意する
+
+Supabase の Project Settings → **API Keys** → Secret keys で、鍵を作って控える（`sb_secret_...`）。RLS を無視して書き込める鍵なので、Worker の秘密情報にだけ置く。
+
+### 4. 秘密情報を登録して、デプロイする
+
+```bash
+cd collector
+npm install
+npx wrangler login                        # sns-posting で済んでいれば不要
+npx wrangler secret put SUPABASE_SECRET_KEY
+npx wrangler secret put NOTION_TOKEN
+npx wrangler secret put RUN_TOKEN          # 手動実行用の合言葉。長いランダムな文字列にする
+npm run deploy
+```
+
+### 5. 手動で動かして確かめる
+
+```bash
+curl -X POST https://persona-wire-collector.<あなたのサブドメイン>.workers.dev/run -H "Authorization: Bearer <RUN_TOKEN>"
+```
+
+登録件数と収集先ごとの内訳が返る。管理画面の「収集・AI判定」に、「AI判定待ち」の記事が並ぶ。
+
+## 手元で動かす
+
+`collector/.dev.vars` に秘密情報を書く（Git には入らない）。
+
+```ini
+SUPABASE_SECRET_KEY=sb_secret_...
+NOTION_TOKEN=ntn_...
+RUN_TOKEN=local-test
+```
+
+```bash
+npm run dev
+curl "http://localhost:8788/__scheduled"   # 定期実行と同じ処理を 1 回動かす
+```
+
+手元で動かしても、登録先は本番の Supabase です。
+
+## 収集先を足す
+
+収集先の画面ができるまでは、SQL Editor で `sources` に行を足す。
+
+```sql
+-- note のマガジン（RSS）
+insert into public.sources (kind, method, name, target, options)
+values ('NOTE', 'rss', 'note 節約マガジン', 'https://note.com/<ユーザー>/m/<マガジンID>/rss',
+        '{"category": "節約", "category_personas": {"節約": ["P04"]}}');
+```
+
+止めるときは `active` を `false` にする。

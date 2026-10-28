@@ -1,5 +1,5 @@
 /* ペルソナ */
-import { store } from '../store';
+import { hasScores, store } from '../store';
 import { db, dbMessage } from '../db';
 import * as ui from '../ui';
 import type { Persona, View } from '../types';
@@ -7,7 +7,6 @@ import type { Persona, View } from '../types';
 const COLORS = ['#6f95d6', '#5cc489', '#9d84dc', '#e9ad62', '#dc6d88', '#5bb8c4', '#c9c26a'];
 
 const tags = (arr: string[], cls = ''): string => arr.map((k) => `<span class="tag ${cls}">${ui.esc(k)}</span>`).join('');
-const splitWords = (v: string | undefined): string[] => String(v ?? '').split(/[,、\s]+/).map((x) => x.trim()).filter(Boolean);
 
 function edit(p?: Persona): void {
   const count = store.state.personas.length;
@@ -34,7 +33,7 @@ function edit(p?: Persona): void {
       if (!v.name.trim()) { ui.toast('名前を入力してください', 'warn'); return false; }
       const data = {
         code: v.code, name: v.name, handle: v.handle, description: v.description, tone: v.tone, color: v.color,
-        keywords: splitWords(v.keywords), ngWords: splitWords(v.ngWords), threshold: Number(v.threshold),
+        keywords: ui.splitWords(v.keywords), ngWords: ui.splitWords(v.ngWords), threshold: Number(v.threshold),
       };
       if (p) void save(p, data);
       else {
@@ -60,7 +59,7 @@ async function save(edited: Persona, data: Partial<Persona>): Promise<void> {
   if (!(await store.commit(db.updatePersona(p), '保存しました'))) return;
   store.log(`ペルソナ「${p.name}」を編集`, 'persona.update');
   const changed = store.state.items.filter((it) => {
-    if (it.status !== 'pending') return false;
+    if (it.status !== 'pending' || !hasScores(it)) return false;
     const j = store.judge(it);
     return j.verdict !== it.verdict || j.persona !== it.persona;
   });

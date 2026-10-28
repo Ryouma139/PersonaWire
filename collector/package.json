@@ -1,0 +1,19 @@
+{
+  "name": "persona-wire-collector",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8788 --test-scheduled",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fast-xml-parser": "4.5.0"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "wrangler": "4.152.0"
+  }
+}

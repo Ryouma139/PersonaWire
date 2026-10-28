@@ -43,8 +43,21 @@ interface LogRow {
   users: { name: string } | null;
 }
 
-/** 記事の verdict が空（手で追加した記事など）のときは、画面側で判定して埋める */
-export type LoadedItem = Omit<Item, 'verdict'> & { verdict: Verdict | null };
+/** 画面から追加・編集できる記事の項目 */
+export type ArticleFields = Pick<Item, 'kind' | 'source' | 'category' | 'title' | 'excerpt' | 'url'>;
+
+const NOTION_DB: Record<SourceKind, NotionDbName> = { NEWS: 'articles', YOUTUBE: 'sns_posts', NOTE: 'sns_posts', X: 'sns_posts', THREADS: 'sns_posts' };
+
+function fromFields(a: Partial<ArticleFields>): Partial<ArticleRow> {
+  const row: Partial<ArticleRow> = {};
+  if (a.kind !== undefined) { row.kind = a.kind; row.type = a.kind === 'NEWS' ? 'news' : 'sns'; }
+  if (a.source !== undefined) row.source_name = a.source;
+  if (a.category !== undefined) row.category = a.category;
+  if (a.title !== undefined) row.title = a.title;
+  if (a.excerpt !== undefined) row.excerpt = a.excerpt;
+  if (a.url !== undefined) row.url = a.url;
+  return row;
+}
 
 const toPersona = (r: PersonaRow): Persona => ({
   id: r.id, code: r.code, name: r.name, handle: r.handle, color: r.color, description: r.description,
@@ -56,7 +69,7 @@ const fromPersona = (p: Omit<Persona, 'id'>): Omit<PersonaRow, 'id'> => ({
   keywords: p.keywords, ng_words: p.ngWords, tone: p.tone, threshold: p.threshold, active: p.active,
 });
 
-function toItem(r: ArticleRow): LoadedItem {
+function toItem(r: ArticleRow): Item {
   const scores: Record<PersonaId, number> = {};
   const reasons: Record<PersonaId, string[]> = {};
   for (const s of r.article_persona_scores) {
@@ -86,6 +99,8 @@ function changed<T>(data: T[] | null): T[] {
 export function dbMessage(e: unknown): string {
   const raw = e instanceof Error ? e.message : typeof e === 'object' && e && 'message' in e ? String(e.message) : String(e);
   if (/row-level security/i.test(raw)) return '権限がありません';
+  if (/duplicate key.*url/i.test(raw)) return 'その URL の記事はすでにあります';
+  if (/articles_url_check/i.test(raw)) return 'URL は http:// か https:// で始めてください';
   if (/duplicate key.*code/i.test(raw)) return 'そのコードは使われています';
   if (/duplicate key.*handle/i.test(raw)) return 'そのスラッグは使われています';
   if (/personas_color_check/i.test(raw)) return 'カラーの形式が正しくありません';
@@ -93,7 +108,7 @@ export function dbMessage(e: unknown): string {
 }
 
 export const db = {
-  async loadAll(): Promise<{ personas: Persona[]; items: LoadedItem[]; activity: Activity[] }> {
+  async loadAll(): Promise<{ personas: Persona[]; items: Item[]; activity: Activity[] }> {
     const [p, a, l] = await Promise.all([
       supabase.from('personas').select('*').order('code'),
       supabase.from('articles').select('*, article_persona_scores(persona_id, relevance_score, reasons)').order('collected_at', { ascending: false }),
@@ -109,8 +124,33 @@ export const db = {
     };
   },
 
-  async updateArticle(id: string, patch: { status?: ItemStatus; persona?: PersonaId | null; notionDb?: NotionDbName; comment?: string; verdict?: Verdict }): Promise<void> {
-    const row: Partial<ArticleRow> = {};
+  /** 記事を追加する（状態は要確認）。追加した記事の id を返す */
+  async insertArticle(a: ArticleFields & { verdict: Verdict; persona: PersonaId | null }): Promise<string> {
+    const { data, error } = await supabase.from('articles').insert({
+      ...fromFields(a), verdict: a.verdict, primary_persona_id: a.persona, notion_db: NOTION_DB[a.kind],
+    }).select('id');
+    if (error) throw error;
+    return changed(data)[0].id as string;
+  },
+
+  async deleteArticle(id: string): Promise<void> {
+    const { data, error } = await supabase.from('articles').delete().eq('id', id).select('id');
+    if (error) throw error;
+    changed(data);
+  },
+
+  /** ペルソナごとのスコアと判定理由を保存する（あれば上書き）。手入力なので model は manual */
+  async saveScores(articleId: string, scores: Record<PersonaId, number>, reasons: Record<PersonaId, string[]>): Promise<void> {
+    const rows = Object.entries(scores).map(([personaId, score]) => ({
+      article_id: articleId, persona_id: personaId, relevance_score: score, reasons: reasons[personaId] ?? [], model: 'manual', judged_at: new Date().toISOString(),
+    }));
+    if (!rows.length) return;
+    const { error } = await supabase.from('article_persona_scores').upsert(rows);
+    if (error) throw error;
+  },
+
+  async updateArticle(id: string, patch: Partial<ArticleFields> & { status?: ItemStatus; persona?: PersonaId | null; notionDb?: NotionDbName; comment?: string; verdict?: Verdict | null }): Promise<void> {
+    const row: Partial<ArticleRow> = fromFields(patch);
     if (patch.status !== undefined) row.status = patch.status;
     if (patch.persona !== undefined) row.primary_persona_id = patch.persona;
     if (patch.notionDb !== undefined) row.notion_db = patch.notionDb;

@@ -5,6 +5,7 @@
 | ファイル | 中身 |
 |---|---|
 | [migrations/20261028000000_phase1.sql](migrations/20261028000000_phase1.sql) | 表（`users`、`activity_logs`、`personas`、`sources`、`source_personas`、`articles`、`article_persona_scores`）、権限ルール（RLS）、トリガー |
+| [migrations/20261029000000_collector.sql](migrations/20261029000000_collector.sql) | 第2段階の収集バッチ用。`sources` に Notion 用の設定を追加、実行履歴 `collect_runs`、news_link を収集先に登録（[collector/](../collector/README.md)） |
 | [seed.sql](seed.sql) | 開発用のサンプルデータ（ペルソナ 5 件、記事 14 件、スコア 70 件）。`ts/src/store.ts` の初期データから自動生成。何度実行しても重複しない |
 
 ## 適用のしかた

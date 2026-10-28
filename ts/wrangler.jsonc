@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "persona-wire-admin",
+  "compatibility_date": "2026-09-01",
+  // ビルドした管理画面（dist/）を配信するだけの Worker。データは Supabase から読み、ログインと RLS で守る。
+  // Supabase の接続先は、ビルド時に .env.local から埋め込まれる（公開してよい値だけ）
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+  "observability": { "enabled": true }
+}

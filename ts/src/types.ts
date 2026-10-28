@@ -38,7 +38,8 @@ export interface Item {
   scores: Record<PersonaId, number>;
   status: ItemStatus;
   collectedAt: string;
-  verdict: Verdict;
+  /** null = AI 判定待ち（スコアがまだ無い） */
+  verdict: Verdict | null;
   persona: PersonaId | null;
 }
 
