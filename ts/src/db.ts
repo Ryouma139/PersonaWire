@@ -1,6 +1,6 @@
 /* Persona Wire — Supabase の表との読み書き（ペルソナ・記事・スコア・操作ログ） */
 import { supabase } from './auth';
-import type { Activity, Item, ItemStatus, NotionDbName, Persona, PersonaId, SourceKind, Verdict } from './types';
+import type { Activity, CollectRun, Item, ItemStatus, NotionDbName, Persona, PersonaId, SourceKind, Verdict } from './types';
 
 interface PersonaRow {
   id: string;
@@ -34,6 +34,20 @@ interface ArticleRow {
   notion_db: NotionDbName;
   article_persona_scores: Array<{ persona_id: string; relevance_score: number; reasons: string[] }>;
 }
+
+interface RunRow {
+  started_at: string;
+  finished_at: string | null;
+  trigger: 'cron' | 'manual';
+  ok: boolean | null;
+  inserted: number;
+  skipped: number;
+  message: string;
+}
+
+const toRun = (r: RunRow): CollectRun => ({
+  startedAt: r.started_at, finishedAt: r.finished_at, trigger: r.trigger, ok: r.ok, inserted: r.inserted, skipped: r.skipped, message: r.message,
+});
 
 interface LogRow {
   created_at: string;
@@ -108,20 +122,37 @@ export function dbMessage(e: unknown): string {
 }
 
 export const db = {
-  async loadAll(): Promise<{ personas: Persona[]; items: Item[]; activity: Activity[] }> {
-    const [p, a, l] = await Promise.all([
+  async loadAll(): Promise<{ personas: Persona[]; items: Item[]; activity: Activity[]; runs: CollectRun[] }> {
+    const [p, a, l, r] = await Promise.all([
       supabase.from('personas').select('*').order('code'),
       supabase.from('articles').select('*, article_persona_scores(persona_id, relevance_score, reasons)').order('collected_at', { ascending: false }),
       supabase.from('activity_logs').select('created_at, action, detail, actor, users(name)').order('created_at', { ascending: false }).limit(30),
+      supabase.from('collect_runs').select('started_at, finished_at, trigger, ok, inserted, skipped, message').order('started_at', { ascending: false }).limit(10),
     ]);
     if (p.error) throw p.error;
     if (a.error) throw a.error;
     if (l.error) throw l.error;
+    if (r.error) throw r.error;
     return {
       personas: (p.data as PersonaRow[]).map(toPersona),
       items: (a.data as ArticleRow[]).map(toItem),
       activity: (l.data as unknown as LogRow[]).map(toActivity),
+      runs: (r.data as RunRow[]).map(toRun),
     };
+  },
+
+  /** 収集バッチを今すぐ動かす。ログイン中の人の証明書を渡し、バッチ側で承認済みメンバーかを確かめる */
+  async runCollector(): Promise<{ inserted: number; message: string }> {
+    const base = import.meta.env.VITE_COLLECTOR_URL;
+    if (!base) throw new Error('ts/.env.local に VITE_COLLECTOR_URL を書いてください');
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new Error('ログインし直してください');
+    const res = await fetch(`${base.replace(/\/$/, '')}/run`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    const body = (await res.json().catch(() => ({}))) as { inserted?: number; message?: string; error?: string };
+    if (res.status === 401) throw new Error('収集を実行する権限がありません');
+    if (!res.ok) throw new Error(body.error ?? `収集バッチがエラーを返しました（${res.status}）`);
+    return { inserted: body.inserted ?? 0, message: body.message ?? '' };
   },
 
   /** 記事を追加する（状態は要確認）。追加した記事の id を返す */

@@ -1,5 +1,5 @@
 /* Persona Wire — UI ヘルパー */
-import type { ItemStatus, Persona, SourceKind, Verdict } from './types';
+import type { CollectRun, ItemStatus, Persona, SourceKind, Verdict } from './types';
 
 export const esc = (s: unknown): string =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
@@ -54,6 +54,11 @@ export const STATUS: Record<ItemStatus, BadgeDef> = {
   rejected: { label: '却下', cls: 'muted' },
   published: { label: '公開中', cls: 'info' },
 };
+
+/** 収集バッチの実行 1 回分の成否バッジと、きっかけ（自動・手動） */
+export const runBadge = (r: CollectRun): string =>
+  r.ok === null ? '<span class="badge badge-info">実行中</span>' : r.ok ? '<span class="badge badge-ok">正常</span>' : '<span class="badge badge-warn">エラーあり</span>';
+export const runTrigger = (r: CollectRun): string => (r.trigger === 'cron' ? '自動' : '手動');
 
 export function badge<K extends string>(map: Record<K, BadgeDef>, key: K): string {
   const v = map[key] ?? { label: key, cls: 'muted' };

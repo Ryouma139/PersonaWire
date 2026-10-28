@@ -134,6 +134,18 @@ export interface Activity {
   who?: string;
 }
 
+/** 収集バッチ（collector/）の実行履歴 1 回分 */
+export interface CollectRun {
+  startedAt: string;
+  finishedAt: string | null;
+  trigger: 'cron' | 'manual';
+  /** null = 実行中 */
+  ok: boolean | null;
+  inserted: number;
+  skipped: number;
+  message: string;
+}
+
 export interface SiteConfig {
   title: string;
   domain: string;
@@ -147,6 +159,7 @@ export interface AppState {
   products: Product[];
   notion: NotionState;
   activity: Activity[];
+  runs: CollectRun[];
   site: SiteConfig;
 }
 

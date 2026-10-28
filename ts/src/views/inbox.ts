@@ -15,6 +15,7 @@ interface Filters {
 const f: Filters = { persona: '', status: '', type: '', threshold: 0 };
 let selectedId: string | null = null;
 let reloading = false;
+let collecting = false;
 
 const NOTION_DBS: NotionDbName[] = ['articles', 'sns_posts', 'ideas'];
 const KINDS: SourceKind[] = ['NEWS', 'YOUTUBE', 'NOTE', 'X', 'THREADS'];
@@ -125,10 +126,14 @@ function render(root: HTMLElement): void {
   const list = filtered(s.items);
   if (!store.item(selectedId)) selectedId = list[0]?.id ?? null;
   const sel = store.item(selectedId);
+  const lastRun = s.runs[0];
 
   root.innerHTML = `
     ${ui.pageHead('収集・AI判定', `NewsとSNSから集めた記事を、${s.personas.length}つのペルソナとの適合度で振り分けます`,
-      `<button class="btn" data-act="reload" ${reloading ? 'disabled' : ''}>${reloading ? '読み込み中…' : '再読み込み'}</button><button class="btn btn-primary" data-act="new">＋ 記事を追加</button>`)}
+      `<button class="btn" data-act="reload" ${reloading ? 'disabled' : ''}>${reloading ? '読み込み中…' : '再読み込み'}</button>`
+      + `<button class="btn" data-act="collect" ${collecting ? 'disabled' : ''}>${collecting ? '収集中…' : '今すぐ収集'}</button>`
+      + '<button class="btn btn-primary" data-act="new">＋ 記事を追加</button>')}
+    ${lastRun ? `<p class="run-line">${ui.runBadge(lastRun)}<span>最終収集 ${ui.fmtDate(lastRun.startedAt)}（${ui.runTrigger(lastRun)}）</span><span>${ui.esc(lastRun.message || `${lastRun.inserted} 件を登録`)}</span><a href="#dashboard" class="link">履歴 →</a></p>` : ''}
 
     <div class="filters">
       <select data-filter="persona"><option value="">すべてのペルソナ</option>${s.personas.map((p) => `<option value="${p.id}" ${f.persona === p.id ? 'selected' : ''}>${ui.esc(p.code)} ${ui.esc(p.name)}</option>`).join('')}</select>
@@ -160,6 +165,7 @@ function render(root: HTMLElement): void {
     const act = el.dataset.act, id = el.dataset.id ?? '';
     if (act === 'select') { selectedId = id; history.replaceState(null, '', '#inbox/' + id); render(root); }
     else if (act === 'reload') reload();
+    else if (act === 'collect') collectNow();
     else if (act === 'new') edit();
     else if (act === 'edit') edit(store.item(id));
     else if (act === 'delete') { const it = store.item(id); if (it) remove(it); }
@@ -316,6 +322,19 @@ function reload(): void {
     .then(() => ui.toast('最新の内容を読み込みました'))
     .catch((e: unknown) => ui.toast('読み込めませんでした: ' + (e instanceof Error ? e.message : String(e)), 'warn'))
     .finally(() => { reloading = false; store.update(() => {}); });
+}
+
+// 収集バッチ（collector/）を今すぐ動かし、終わったら DB を読み直す
+function collectNow(): void {
+  collecting = true;
+  store.update(() => {}); // ボタンを「収集中…」に切り替える
+  db.runCollector()
+    .then((r) => ui.toast(r.message || `${r.inserted} 件を登録しました`))
+    .catch((e: unknown) => ui.toast('収集できませんでした: ' + (e instanceof Error ? e.message : String(e)), 'warn'))
+    .finally(async () => {
+      collecting = false;
+      await store.reload().catch(() => store.update(() => {}));
+    });
 }
 
 export const inbox: View = { render };

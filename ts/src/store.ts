@@ -7,7 +7,7 @@ import { db, dbMessage } from './db';
 import { auth } from './auth';
 import * as ui from './ui';
 
-// v4: ペルソナ・記事・操作ログを DB に移し、ブラウザには保存しなくなった
+// v4: ペルソナ・記事・操作ログ（と収集の実行履歴）を DB に移し、ブラウザには保存しなくなった
 const KEY = 'persona-wire:v4';
 const listeners: Array<() => void> = [];
 
@@ -32,7 +32,7 @@ function judgeWith(item: Pick<Item, 'scores'>, personas: Persona[]): { verdict: 
 }
 
 /** 有料配信・商品・Notion のサンプル。ペルソナは p1〜p5 で書き、DB を読んだあとにコード（P01〜）で付け替える */
-type LocalState = Omit<AppState, 'personas' | 'items' | 'activity'>;
+type LocalState = Omit<AppState, 'personas' | 'items' | 'activity' | 'runs'>;
 
 function seedLocal(): LocalState {
   return {
@@ -101,11 +101,11 @@ function loadLocal(): LocalState {
 }
 
 // DB の分は reload() で読み込むまで空
-let state: AppState = { ...loadLocal(), personas: [], items: [], activity: [] };
+let state: AppState = { ...loadLocal(), personas: [], items: [], activity: [], runs: [] };
 state.notion.syncing = false;
 
 function save(): void {
-  const { personas: _p, items: _i, activity: _a, ...local } = state;
+  const { personas: _p, items: _i, activity: _a, runs: _r, ...local } = state;
   try {
     localStorage.setItem(KEY, JSON.stringify(local));
   } catch {
@@ -142,7 +142,7 @@ export const store = {
   },
   /** DB からペルソナ・記事・操作ログを読み直す */
   async reload(): Promise<void> {
-    const { personas, items, activity } = await db.loadAll();
+    const { personas, items, activity, runs } = await db.loadAll();
     state.personas = personas;
     // AI 判定が空でもスコアがある記事（Table Editor で入れた記事など）は、スコアから判定して表示する（DB には書かない）。
     // スコアが無い記事（バッチで取り込んだ直後）は、判定待ちのまま
@@ -152,6 +152,7 @@ export const store = {
       return { ...it, verdict: j.verdict, persona: it.persona ?? j.persona };
     });
     state.activity = activity;
+    state.runs = runs;
     relink();
     save();
     notify();
@@ -173,7 +174,7 @@ export const store = {
   },
   /** 開発用: 有料配信・商品・Notion のサンプルを初期状態に戻す（DB の分は読み直す） */
   async reset(): Promise<void> {
-    state = { ...seedLocal(), personas: state.personas, items: state.items, activity: state.activity };
+    state = { ...seedLocal(), personas: state.personas, items: state.items, activity: state.activity, runs: state.runs };
     await store.reload();
   },
   /** 操作ログを残す。画面にはすぐ出し、DB には後ろで書き込む */

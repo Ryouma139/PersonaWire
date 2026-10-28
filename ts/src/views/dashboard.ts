@@ -114,6 +114,11 @@ function render(root: HTMLElement): void {
     </div>
 
     <section class="card">
+      <div class="card-head"><h2>収集バッチ</h2><a href="#inbox" class="link">収集・AI判定 →</a></div>
+      ${s.runs.length ? `<ul class="timeline">${s.runs.slice(0, 6).map((r) => `<li><time>${ui.fmtDate(r.startedAt)}</time><span>${ui.runBadge(r)} ${ui.runTrigger(r)} · 登録 ${r.inserted} 件 · 対象外 ${r.skipped} 件${r.message ? `<small class="run-msg">${ui.esc(r.message)}</small>` : ''}</span></li>`).join('')}</ul>` : '<p class="empty">まだ実行されていません</p>'}
+    </section>
+
+    <section class="card">
       <div class="card-head"><h2>アクティビティ</h2></div>
       ${s.activity.length ? `<ul class="timeline">${s.activity.slice(0, 8).map((a) => `<li><time>${ui.fmtDate(a.at)}</time><span>${a.who ? `<b>${ui.esc(a.who)}</b> ` : ''}${ui.esc(a.text)}</span></li>`).join('')}</ul>` : '<p class="empty">まだ操作の記録はありません</p>'}
     </section>`;

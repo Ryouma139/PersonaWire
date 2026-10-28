@@ -8,7 +8,9 @@
   "vars": {
     "SUPABASE_URL": "https://dxfzlwxibsdkaighzzjo.supabase.co",
     // バッチで登録する記事の 1 日（日本時間）の上限。RSS・note・Notion の合計
-    "DAILY_LIMIT": "100"
+    "DAILY_LIMIT": "100",
+    // 「今すぐ収集」ボタンを置く管理画面の URL（カンマ区切り）。ここからのブラウザの呼び出しだけを受け付ける
+    "ALLOWED_ORIGINS": "https://persona-wire-admin.tryoma0227.workers.dev,http://localhost:5173"
   },
   // 秘密情報は vars に書かず、wrangler secret put で登録する（README.md を参照）
   //   SUPABASE_SECRET_KEY  Supabase の Secret key（RLS を無視して書き込める。絶対に公開しない）

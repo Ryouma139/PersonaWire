@@ -6,6 +6,7 @@ export interface Env {
   NOTION_TOKEN?: string;
   RUN_TOKEN?: string;
   DAILY_LIMIT?: string;
+  ALLOWED_ORIGINS?: string;
 }
 
 export type Rest = ReturnType<typeof rest>;
