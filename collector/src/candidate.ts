@@ -18,6 +18,8 @@ export interface SourceOptions {
   exclude_categories?: string[];
   /** カテゴリ → 主担当ペルソナのコード（AI 判定までの仮の主担当） */
   category_personas?: Record<string, string[]>;
+  /** 1 回の実行で読む記事の最大数（新しい順）。YouTube を各チャンネル 2 本までにする、など。省略時は制限なし */
+  max_items?: number;
   /** RSS: 記事に付けるカテゴリ（note のマガジン名など） */
   category?: string;
   /** Notion: プロパティ名（省略時は 記事一覧 の列名） */

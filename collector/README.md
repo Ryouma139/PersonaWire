@@ -93,10 +93,10 @@ values ('NOTE', 'rss', 'note 節約マガジン', 'https://note.com/<ユーザ�
 ```
 
 ```sql
--- YouTube のチャンネル（RSS。API キーは不要。新しい動画 15 本までが対象）
+-- YouTube のチャンネル（RSS。API キーは不要。RSS には新しい動画 15 本まで。max_items で 1 回に取り込む数を絞る）
 insert into public.sources (kind, method, name, target, options)
 values ('YOUTUBE', 'rss', 'YouTube <チャンネル名>', 'https://www.youtube.com/feeds/videos.xml?channel_id=<UC で始まるチャンネル ID>',
-        '{"category": "テクノロジー", "category_personas": {"テクノロジー": ["P01"]}}');
+        '{"max_items": 2, "category": "テクノロジー", "category_personas": {"テクノロジー": ["P01"]}}');
 ```
 
 チャンネル ID は、YouTube のチャンネルページで「概要」→「チャンネルを共有」→「チャンネル ID をコピー」で取れる（`UC` で始まる 24 文字）。

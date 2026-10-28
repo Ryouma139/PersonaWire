@@ -49,9 +49,13 @@ async function existingUrls(db: Rest, urls: string[]): Promise<Set<string>> {
 }
 
 async function read(env: Env, source: Source): Promise<Candidate[]> {
-  if (source.method === 'notion') return notionCandidates(env.NOTION_TOKEN, source);
-  if (source.method === 'rss') return rssCandidates(source);
-  throw new Error(`取得方法 ${source.method} にはまだ対応していません`);
+  let got: Candidate[];
+  if (source.method === 'notion') got = await notionCandidates(env.NOTION_TOKEN, source);
+  else if (source.method === 'rss') got = await rssCandidates(source);
+  else throw new Error(`取得方法 ${source.method} にはまだ対応していません`);
+  // max_items があれば、新しいものからその数だけにする
+  const max = source.options.max_items;
+  return max && max > 0 ? got.sort((a, b) => b.collectedAt.localeCompare(a.collectedAt)).slice(0, max) : got;
 }
 
 export async function collect(env: Env, trigger: 'cron' | 'manual'): Promise<Summary> {
