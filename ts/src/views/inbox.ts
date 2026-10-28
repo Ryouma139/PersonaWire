@@ -166,7 +166,9 @@ function render(root: HTMLElement): void {
       }).join('') : `<p class="empty">${s.items.length ? '条件に合う記事はありません' : '記事はまだありません。Supabase の articles 表に追加すると、ここに表示されます'}</p>`}
     </section>
 
-    ${detail(sel)}`;
+    ${detail(sel)}
+
+    <div class="to-top"><button class="btn btn-quiet" data-act="top">↑ TOPへ</button></div>`;
 
   root.onclick = (e) => {
     const el = ui.actionTarget(e);
@@ -177,6 +179,8 @@ function render(root: HTMLElement): void {
       history.replaceState(null, '', '#inbox/' + id);
       render(root);
       ui.byId('detail').scrollIntoView({ behavior: 'smooth', block: 'start' }); // 一覧の下にある詳細まで移動する
+    } else if (act === 'top') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (act === 'back') {
       root.querySelector(`.row[data-id="${selectedId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }

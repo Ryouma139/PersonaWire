@@ -474,3 +474,5 @@ input[type=checkbox] { accent-color: var(--accent); }
   .mini-list .pcode { display: none; }
   .toasts { left: 16px; right: 16px; }
 }
+
+.to-top { display: flex; justify-content: center; margin: 16px 0 8px; }
