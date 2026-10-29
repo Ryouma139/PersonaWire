@@ -1,0 +1,10 @@
+# 管理画面のすべての応答に付けるセキュリティヘッダー（Cloudflare の静的配信が読む。ビルドで dist/ にコピーされる）
+# ほかのサイトに枠（iframe）で埋め込ませない（だまして操作させる攻撃を防ぐ）。検索エンジンにも載せない
+/*
+  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  X-Robots-Tag: noindex

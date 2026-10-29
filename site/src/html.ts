@@ -80,7 +80,7 @@ export function productBox(c: Ctx, title: string, items: string[]): string {
 }
 
 // 商品リンクのクリックを数える。ページを離れても届く sendBeacon を使う
-const CLICK_SCRIPT = `
+export const CLICK_SCRIPT = `
 document.addEventListener('click', count); document.addEventListener('auxclick', count);
 function count(e) {
   var a = e.target.closest && e.target.closest('a[data-pid]'); if (!a) return;

@@ -14,6 +14,7 @@
  * サイトの名前・言語・運営者情報は DB の sites（SITE_CODE の行）から読み、記事・商品もそのサイトの分だけを出す
  */
 import { api, type Api, type Ctx, type Env } from './data';
+import { CLICK_SCRIPT } from './html';
 import { aboutPage, adPage, articlePage, home, notFound, personaPage, privacyPage, productsPage } from './pages';
 import type { Text } from './text';
 
@@ -58,6 +59,45 @@ async function sitemap(db: Api, url: URL): Promise<Response> {
   return new Response(body, { headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' } });
 }
 
+/**
+ * すべての応答に付けるセキュリティヘッダー。
+ * スクリプトは CLICK_SCRIPT だけを、そのハッシュで許す（記事や商品の文字にスクリプトが紛れ込んでも動かない）。
+ * 画像は商品画像が ASP のサーバーにあるので https なら許す。埋め込みは問い合わせの Google フォームだけ。
+ * ほかのサイトにこのサイトを枠（iframe）で埋め込ませない
+ */
+let headers: Promise<Record<string, string>> | undefined;
+function securityHeaders(): Promise<Record<string, string>> {
+  return (headers ??= crypto.subtle.digest('SHA-256', new TextEncoder().encode(CLICK_SCRIPT)).then((d) => {
+    const hash = btoa(String.fromCharCode(...new Uint8Array(d)));
+    const csp = [
+      "default-src 'self'",
+      `script-src 'sha256-${hash}'`,
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' https: data:",
+      'frame-src https://docs.google.com',
+      "connect-src 'self'",
+      "object-src 'none'",
+      "base-uri 'none'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+    ].join('; ');
+    return {
+      'Content-Security-Policy': csp,
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Strict-Transport-Security': 'max-age=31536000',
+      'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+    };
+  }));
+}
+
+async function withSecurityHeaders(res: Response): Promise<Response> {
+  const h = new Headers(res.headers);
+  for (const [k, v] of Object.entries(await securityHeaders())) h.set(k, v);
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
+}
+
 export interface SiteOptions {
   /** 画面の文言（サイトの言語） */
   text: Text;
@@ -68,45 +108,49 @@ export interface SiteOptions {
 export function createSite(opts: SiteOptions): ExportedHandler<Env> {
   return {
     async fetch(request, env) {
-      const url = new URL(request.url);
-      const db = api(env);
-      const path = url.pathname.replace(/\/+$/, '') || '/';
-      const t = opts.text;
-      try {
-        if (path === '/c') return request.method === 'POST' ? await clickBeacon(request, db, url) : new Response(null, { status: 405 });
-        if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method Not Allowed', { status: 405 });
-        if (path === '/robots.txt') return new Response(`User-agent: *\nDisallow: /go/\nSitemap: ${url.origin}/sitemap.xml\n`, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
-        if (path === '/sitemap.xml') return await sitemap(db, url);
-        let m = /^\/go\/([^/]+)$/.exec(path);
-        if (m) {
-          const res = await go(db, url, m[1]);
-          if (res) return res;
-        }
-
-        const site = await db.site();
-        if (!site) throw new Error(`サイト ${env.SITE_CODE} が DB（sites）に無いか、無効です`);
-        const c: Ctx = { env, db, url, site, t, theme: opts.theme ?? '' };
-
-        if (path === '/') return html(await home(c));
-        if (path === '/products') return html(await productsPage(c));
-        if (path === '/about') return html(await aboutPage(c));
-        if (path === '/privacy') return html(await privacyPage(c));
-        if (path === '/ad') return html(await adPage(c));
-        m = /^\/p\/([^/]+)$/.exec(path);
-        if (m && HANDLE.test(decodeURIComponent(m[1]))) {
-          const page = await personaPage(c, decodeURIComponent(m[1]));
-          if (page) return html(page);
-        }
-        m = /^\/a\/(\d{1,12})$/.exec(path);
-        if (m) {
-          const page = await articlePage(c, Number(m[1]));
-          if (page) return html(page);
-        }
-        return html(await notFound(c), 404);
-      } catch (e) {
-        console.error('site error', e instanceof Error ? e.message : e);
-        return new Response(t.error, { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
-      }
+      return withSecurityHeaders(await handle(opts, request, env));
     },
   };
+}
+
+async function handle(opts: SiteOptions, request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const db = api(env);
+  const path = url.pathname.replace(/\/+$/, '') || '/';
+  const t = opts.text;
+  try {
+    if (path === '/c') return request.method === 'POST' ? await clickBeacon(request, db, url) : new Response(null, { status: 405 });
+    if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method Not Allowed', { status: 405 });
+    if (path === '/robots.txt') return new Response(`User-agent: *\nDisallow: /go/\nSitemap: ${url.origin}/sitemap.xml\n`, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    if (path === '/sitemap.xml') return await sitemap(db, url);
+    let m = /^\/go\/([^/]+)$/.exec(path);
+    if (m) {
+      const res = await go(db, url, m[1]);
+      if (res) return res;
+    }
+
+    const site = await db.site();
+    if (!site) throw new Error(`サイト ${env.SITE_CODE} が DB（sites）に無いか、無効です`);
+    const c: Ctx = { env, db, url, site, t, theme: opts.theme ?? '' };
+
+    if (path === '/') return html(await home(c));
+    if (path === '/products') return html(await productsPage(c));
+    if (path === '/about') return html(await aboutPage(c));
+    if (path === '/privacy') return html(await privacyPage(c));
+    if (path === '/ad') return html(await adPage(c));
+    m = /^\/p\/([^/]+)$/.exec(path);
+    if (m && HANDLE.test(decodeURIComponent(m[1]))) {
+      const page = await personaPage(c, decodeURIComponent(m[1]));
+      if (page) return html(page);
+    }
+    m = /^\/a\/(\d{1,12})$/.exec(path);
+    if (m) {
+      const page = await articlePage(c, Number(m[1]));
+      if (page) return html(page);
+    }
+    return html(await notFound(c), 404);
+  } catch (e) {
+    console.error('site error', e instanceof Error ? e.message : e);
+    return new Response(t.error, { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
+  }
 }
