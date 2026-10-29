@@ -13,6 +13,8 @@
 | [migrations/20261029050000_article_excerpt.sql](migrations/20261029050000_article_excerpt.sql) | 要約が空の記事に元記事の概要を入れる関数と、取得を試した印（`articles.excerpt_checked_at`）。実行履歴に件数の列を追加 |
 | [migrations/20261030000000_site_affiliate.sql](migrations/20261030000000_site_affiliate.sql) | 公開サイトとアフィリエイト。商品（`products`、`product_personas`）、記事と商品の紐づけ（`article_products`）、クリック記録（`link_clicks`）、公開サイト用のビュー（`public_*`）、クリックを記録する `record_click`。公開には編集コメント 20 字以上が必要、公開・非公開の切り替えは管理者だけ |
 | [migrations/20261030010000_notion_daily_max.sql](migrations/20261030010000_notion_daily_max.sql) | Notion news_link から登録する記事を 1 日 40 件までにする（`options.daily_max`） |
+| [migrations/20261031000000_multi_site.sql](migrations/20261031000000_multi_site.sql) | 公開サイトを複数持てるようにする。サイト（`sites`）、サイトで扱うペルソナ（`site_personas`）、商品のサイトごとのリンク（`product_links`）、クリックのサイト（`link_clicks.site_id`）。公開用のビューに `site_code` を追加。今のデータは 1 つ目のサイト `persona-wire` に移す |
+| [migrations/20261031010000_site_adoutor.sql](migrations/20261031010000_site_adoutor.sql) | 2 つ目のサイト `adoutor`（海外の旅行者向け、英語）と、ペルソナ P06〜P08 を登録する。**公開サイト（site/）がサイトで絞り込む版になってから実行する** |
 | [seed.sql](seed.sql) | 開発用のサンプルデータ（ペルソナ 5 件、記事 14 件、スコア 70 件）。`ts/src/store.ts` の初期データから自動生成。何度実行しても重複しない |
 
 ## 適用のしかた

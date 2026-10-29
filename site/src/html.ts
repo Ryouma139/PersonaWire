@@ -1,5 +1,5 @@
-/* ページの共通部品（枠・記事カード・商品カード） */
-import type { Article, Asp, Env, Persona, Product } from './data';
+/* ページの共通部品（枠・記事カード・商品カード）。文言は c.t（サイトの言語）から取る */
+import type { Article, Ctx, Persona, Product } from './data';
 
 export const esc = (s: unknown): string =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -31,32 +31,23 @@ export function linkify(s: string): string {
   return out + esc(s.slice(last));
 }
 
-const day = (iso: string): string =>
-  new Date(iso).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'long', day: 'numeric' });
+/** 日付（日本時間） */
+export const day = (c: Ctx, iso: string): string =>
+  new Date(iso).toLocaleDateString(c.t.dateLocale, { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'long', day: 'numeric' });
 
 const yen = (n: number): string => '¥' + n.toLocaleString('ja-JP');
 
-const ASP_LABEL: Record<Asp, string> = {
-  amazon: 'Amazonで見る',
-  rakuten: '楽天市場で見る',
-  a8: '詳しく見る',
-  moshimo: '詳しく見る',
-  other: '詳しく見る',
-};
-
-const KIND_LABEL: Record<string, string> = { NEWS: 'ニュース', YOUTUBE: 'YouTube', NOTE: 'note', X: 'X', THREADS: 'Threads' };
-
 /** Amazon アソシエイトの規約で、サイトに載せることが求められている文 */
-export const amazonStatement = (env: Env): string => `Amazonのアソシエイトとして、${esc(env.SITE_TITLE)}は適格販売により収入を得ています。`;
+export const amazonStatement = (c: Ctx): string => c.t.amazonStatement(esc(c.site.name));
 
 /** 記事の一覧の 1 件 */
-export function articleCard(a: Article): string {
+export function articleCard(c: Ctx, a: Article): string {
   return `
     <article class="card">
       <div class="meta">
         ${a.persona_name ? `<a class="persona" href="/p/${esc(a.persona_handle)}" style="--c:${esc(a.persona_color)}">${esc(a.persona_name)}</a>` : ''}
-        <span>${esc(KIND_LABEL[a.kind] ?? a.kind)} · ${esc(a.source_name)}</span>
-        <time datetime="${esc(a.published_at)}">${day(a.published_at)}</time>
+        <span>${esc(c.t.kind[a.kind] ?? a.kind)} · ${esc(a.source_name)}</span>
+        <time datetime="${esc(a.published_at)}">${day(c, a.published_at)}</time>
       </div>
       <h2><a href="/a/${a.no}">${esc(a.title)}</a></h2>
       <p class="comment">${linkify(a.editor_comment)}</p>
@@ -67,7 +58,7 @@ export function articleCard(a: Article): string {
  * 商品カード。リンク先はアフィリエイトのリンクそのもの（転送で隠さない）。
  * クリックは、下の CLICK_SCRIPT がこっそり /c に知らせて数える（数えられなくても、リンクはそのまま動く）
  */
-export function productCard(p: Product, placement: 'side' | 'article' | 'list', ctx: { articleNo?: number; personaHandle?: string } = {}): string {
+export function productCard(c: Ctx, p: Product, placement: 'side' | 'article' | 'list', ctx: { articleNo?: number; personaHandle?: string } = {}): string {
   const href = safeUrl(p.url);
   if (!href) return '';
   const img = safeUrl(p.image_url);
@@ -78,14 +69,14 @@ export function productCard(p: Product, placement: 'side' | 'article' | 'list', 
       ${img ? `<img src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
       <strong>${esc(p.name)}</strong>
       <small>${esc(p.category)}${p.price ? ` · ${yen(p.price)}` : ''}</small>
-      <span class="go">${ASP_LABEL[p.asp] ?? '詳しく見る'} ↗</span>
+      <span class="go">${esc(c.t.aspButton[p.asp] ?? c.t.aspButton.other)} ↗</span>
     </a>`;
 }
 
-export function productBox(title: string, items: string[]): string {
+export function productBox(c: Ctx, title: string, items: string[]): string {
   const cards = items.filter(Boolean);
   if (!cards.length) return '';
-  return `<section class="products"><h3>${esc(title)} <small>広告</small></h3>${cards.join('')}</section>`;
+  return `<section class="products"><h3>${esc(title)} <small>${esc(c.t.adLabel)}</small></h3>${cards.join('')}</section>`;
 }
 
 // 商品リンクのクリックを数える。ページを離れても届く sendBeacon を使う
@@ -100,7 +91,7 @@ function count(e) {
 const CSS = `
 :root { --bg:#f7f6f2; --surface:#fff; --text:#1d1d1f; --text-2:#5f6368; --border:#e3e1da; --accent:#0f8f86; --navy:#13294b; }
 * { box-sizing: border-box; }
-body { margin:0; background:var(--bg); color:var(--text); font:15px/1.75 "Noto Sans JP", system-ui, -apple-system, "Hiragino Sans", sans-serif; }
+body { margin:0; background:var(--bg); color:var(--text); font:15px/1.75 var(--font); }
 a { color:inherit; }
 .notice { background:var(--navy); color:#fff; font-size:12px; text-align:center; padding:6px 16px; }
 .notice a { color:#fff; }
@@ -170,12 +161,13 @@ export interface PageOpts {
   noindex?: boolean;
 }
 
-export function layout(env: Env, o: PageOpts, body: string): string {
-  const fullTitle = o.title ? `${o.title} | ${env.SITE_TITLE}` : `${env.SITE_TITLE} — ${env.SITE_TAGLINE}`;
-  const desc = (o.description ?? env.SITE_TAGLINE).replace(/\s+/g, ' ').slice(0, 120);
+export function layout(c: Ctx, o: PageOpts, body: string): string {
+  const { site, t } = c;
+  const fullTitle = o.title ? `${o.title} | ${site.name}` : `${site.name} — ${site.tagline}`;
+  const desc = (o.description ?? site.tagline).replace(/\s+/g, ' ').slice(0, 120);
   const origin = new URL(o.canonical).origin;
   return `<!doctype html>
-<html lang="ja">
+<html lang="${esc(t.lang)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -183,33 +175,33 @@ export function layout(env: Env, o: PageOpts, body: string): string {
 <meta name="description" content="${esc(desc)}">
 <link rel="canonical" href="${esc(o.canonical)}">
 ${o.noindex ? '<meta name="robots" content="noindex">' : ''}
-<meta property="og:title" content="${esc(o.title ?? env.SITE_TITLE)}">
+<meta property="og:title" content="${esc(o.title ?? site.name)}">
 <meta property="og:description" content="${esc(desc)}">
 <meta property="og:type" content="${o.ogType ?? 'website'}">
 <meta property="og:url" content="${esc(o.canonical)}">
-<meta property="og:site_name" content="${esc(env.SITE_TITLE)}">
+<meta property="og:site_name" content="${esc(site.name)}">
 <meta property="og:image" content="${esc(origin)}/logo.png">
 <meta name="twitter:card" content="summary">
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="apple-touch-icon" href="/logo.png">
-<style>${CSS}</style>
+<style>:root { --font:${t.font}; }${CSS}${c.theme}</style>
 </head>
 <body>
-<div class="notice">当サイトはアフィリエイト広告（Amazonアソシエイト・楽天アフィリエイト・A8.net・もしもアフィリエイト）を利用しています。<a href="/ad">広告について</a></div>
+<div class="notice">${t.notice}</div>
 <header class="site"><div class="wrap">
-  <div class="head"><a href="/"><img src="/logo.png" alt=""></a><a href="/"><strong>${esc(env.SITE_TITLE)}</strong><small>${esc(env.SITE_TAGLINE)}</small></a></div>
+  <div class="head"><a href="/"><img src="/logo.png" alt=""></a><a href="/"><strong>${esc(site.name)}</strong><small>${esc(site.tagline)}</small></a></div>
   <nav class="personas">
-    <a href="/" class="${o.activeHandle === undefined && !o.section ? 'on' : ''}">すべて</a>
+    <a href="/" class="${o.activeHandle === undefined && !o.section ? 'on' : ''}">${esc(t.all)}</a>
     ${o.personas.map((p) => `<a href="/p/${esc(p.handle)}" class="${o.activeHandle === p.handle ? 'on' : ''}">${esc(p.name)}</a>`).join('')}
-    <a href="/products" class="${o.section === 'products' ? 'on' : ''}">おすすめ商品</a>
+    <a href="/products" class="${o.section === 'products' ? 'on' : ''}">${esc(t.products)}</a>
   </nav>
 </div></header>
 <main class="wrap">${body}</main>
 <footer class="site"><div class="wrap">
-  <nav><a href="/products">おすすめ商品</a><a href="/about">運営者情報</a><a href="/privacy">プライバシーポリシー</a><a href="/ad">広告について</a></nav>
-  <p>${amazonStatement(env)}</p>
-  <p>記事の要約・引用は各出典元に帰属します。全文は出典元でお読みください。</p>
-  <p>© ${esc(env.SITE_TITLE)}</p>
+  <nav><a href="/products">${esc(t.products)}</a><a href="/about">${esc(t.about)}</a><a href="/privacy">${esc(t.privacy)}</a><a href="/ad">${esc(t.ad)}</a></nav>
+  <p>${amazonStatement(c)}</p>
+  <p>${esc(t.sourceRights)}</p>
+  <p>© ${esc(site.name)}</p>
 </div></footer>
 <script>${CLICK_SCRIPT}</script>
 </body>

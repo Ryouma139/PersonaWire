@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "persona-wire-adoutor",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  // 海外の旅行者向けの公開サイト（英語）。ページの組み立ては site/src/app.ts と共通で、ここには英語の文言と見た目だけを置く。
+  // ロゴなどの画像は public/ から、そのまま配信する
+  "assets": { "directory": "./public" },
+  "vars": {
+    "SUPABASE_URL": "https://dxfzlwxibsdkaighzzjo.supabase.co",
+    // 誰が使ってもよい公開用の鍵（Publishable key）。Secret key は、このサイトには絶対に置かない
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_ov9sVqqpNK_2QtCtn33dCA_qUag_JAO",
+    // DB の sites.code。サイト名・キャッチコピー・運営者情報は、DB の sites の行を書き換えて変える
+    "SITE_CODE": "adoutor"
+  },
+  "observability": { "enabled": true }
+}
