@@ -20,6 +20,11 @@ export interface SourceOptions {
   category_personas?: Record<string, string[]>;
   /** 1 回の実行で読む記事の最大数（新しい順）。YouTube を各チャンネル 2 本までにする、など。省略時は制限なし */
   max_items?: number;
+  /**
+   * 1 日（日本時間）に登録する記事の最大数。重複を除いたあとに数えるので、超えた分は翌日以降の実行で拾う。
+   * Notion のように 1 回で多く読める収集先が、1 日の上限（DAILY_LIMIT）を使い切らないようにする。省略時は制限なし
+   */
+  daily_max?: number;
   /** RSS: 記事に付けるカテゴリ（note のマガジン名など） */
   category?: string;
   /** Notion: プロパティ名（省略時は 記事一覧 の列名） */

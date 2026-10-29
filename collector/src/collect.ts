@@ -116,7 +116,27 @@ export async function collect(env: Env, trigger: 'cron' | 'manual', budget = new
     const exists = await existingUrls(db, valid.map(({ c }) => c.url));
     const fresh = valid.filter(({ c }) => !exists.has(c.url)).sort((a, b) => b.c.collectedAt.localeCompare(a.c.collectedAt));
     const room = Math.max(0, limit - summary.usedToday);
-    const take = fresh.slice(0, room);
+    // 収集先ごとの 1 日の上限（daily_max）。今日すでに登録した数から数え始める
+    const capped = sources.filter((s) => s.options.daily_max !== undefined);
+    const usedBySource = new Map<string, number>();
+    if (capped.length) {
+      const today = await db.select<{ source_id: string }>(
+        `articles?select=source_id&source_id=${encodeURIComponent(inList(capped.map((s) => s.id)))}&created_at=gte.${encodeURIComponent(jstMidnight())}`);
+      for (const r of today) usedBySource.set(r.source_id, (usedBySource.get(r.source_id) ?? 0) + 1);
+    }
+    const overCap = new Map<string, number>(); // 収集先の上限で翌日以降に回した数
+    const take: typeof fresh = [];
+    for (const x of fresh) {
+      if (take.length >= room) break;
+      const max = x.source.options.daily_max;
+      const used = usedBySource.get(x.source.id) ?? 0;
+      if (max !== undefined && used >= max) {
+        overCap.set(x.source.name, (overCap.get(x.source.name) ?? 0) + 1);
+        continue;
+      }
+      usedBySource.set(x.source.id, used + 1);
+      take.push(x);
+    }
     summary.skipped = pool.length - take.length;
 
     if (take.length) {
@@ -149,10 +169,16 @@ export async function collect(env: Env, trigger: 'cron' | 'manual', budget = new
     const okIds = sources.filter((s) => !summary.sources.find((r) => r.name === s.name)?.error).map((s) => s.id);
     if (okIds.length) await db.update(`sources?id=${encodeURIComponent(inList(okIds))}`, { last_fetched_at: new Date().toISOString() });
 
-    const full = room <= take.length && fresh.length > take.length ? `（1日の上限 ${limit} 件に達したため ${fresh.length - take.length} 件は翌日以降）` : '';
-    summary.message = `${summary.inserted} 件を登録${full}`;
+    const capNote = [...overCap].map(([name, n]) => `${name} は1日の上限に達したため ${n} 件`).join('、');
+    const left = fresh.length - take.length - [...overCap.values()].reduce((a, n) => a + n, 0);
+    const full = [
+      room <= take.length && left > 0 ? `1日の上限 ${limit} 件に達したため ${left} 件` : '',
+      capNote,
+    ].filter(Boolean).join('、');
+    const fullNote = full ? `（${full}は翌日以降）` : '';
+    summary.message = `${summary.inserted} 件を登録${fullNote}`;
     if (summary.inserted) {
-      await db.insert('activity_logs', { actor: 'system', user_id: null, action: 'collect.run', detail: { text: `収集バッチで ${summary.inserted} 件を取り込み${full}` } });
+      await db.insert('activity_logs', { actor: 'system', user_id: null, action: 'collect.run', detail: { text: `収集バッチで ${summary.inserted} 件を取り込み${fullNote}` } });
     }
   } catch (e) {
     summary.ok = false;

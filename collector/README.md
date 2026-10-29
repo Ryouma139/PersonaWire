@@ -102,6 +102,12 @@ values ('YOUTUBE', 'rss', 'YouTube <チャンネル名>', 'https://www.youtube.c
 
 チャンネル ID は、YouTube のチャンネルページで「概要」→「チャンネルを共有」→「チャンネル ID をコピー」で取れる（`UC` で始まる 24 文字）。
 
+1 回で多く読める収集先（Notion など）は、`daily_max` で 1 日（日本時間）に登録する数を絞る。重複を除いたあとに数えるので、超えた分は翌日以降の実行で拾う（`max_items` は読む前に絞るので、2 時間に多く入る収集先に使うと古い記事を取りこぼす）。
+
+```sql
+update public.sources set options = options || '{"daily_max": 40}'::jsonb where name = 'Notion news_link';
+```
+
 止めるときは `active` を `false` にする。
 
 X は RSS が無く、読み取りには X API の有料プランが必要なため、まだ対応していない。
