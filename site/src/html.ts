@@ -14,6 +14,23 @@ export const safeUrl = (u: string | null | undefined): string | null => {
   }
 };
 
+/**
+ * 編集コメントの中の http(s) の URL をリンクにする。ほかの文字はエスケープする。
+ * 文末の句読点・閉じかっこはリンクに含めない。編集部が書いたリンクだが、検索エンジンの評価は渡さない（nofollow）
+ */
+export function linkify(s: string): string {
+  let out = '';
+  let last = 0;
+  for (const m of s.matchAll(/https?:\/\/[^\s<>"'（）「」『』【】、。]+/g)) {
+    const text = m[0].replace(/[.,!?;:)\]]+$/, '');
+    const href = safeUrl(text);
+    out += esc(s.slice(last, m.index));
+    out += href ? `<a href="${esc(href)}" target="_blank" rel="nofollow noopener noreferrer">${esc(text)}</a>` : esc(text);
+    last = m.index + text.length;
+  }
+  return out + esc(s.slice(last));
+}
+
 const day = (iso: string): string =>
   new Date(iso).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -42,7 +59,7 @@ export function articleCard(a: Article): string {
         <time datetime="${esc(a.published_at)}">${day(a.published_at)}</time>
       </div>
       <h2><a href="/a/${a.no}">${esc(a.title)}</a></h2>
-      <p class="comment">${esc(a.editor_comment)}</p>
+      <p class="comment">${linkify(a.editor_comment)}</p>
     </article>`;
 }
 
@@ -50,7 +67,7 @@ export function articleCard(a: Article): string {
  * 商品カード。リンク先はアフィリエイトのリンクそのもの（転送で隠さない）。
  * クリックは、下の CLICK_SCRIPT がこっそり /c に知らせて数える（数えられなくても、リンクはそのまま動く）
  */
-export function productCard(p: Product, placement: 'side' | 'article', ctx: { articleNo?: number; personaHandle?: string } = {}): string {
+export function productCard(p: Product, placement: 'side' | 'article' | 'list', ctx: { articleNo?: number; personaHandle?: string } = {}): string {
   const href = safeUrl(p.url);
   if (!href) return '';
   const img = safeUrl(p.image_url);
@@ -107,7 +124,7 @@ nav.personas a.on { background:var(--navy); color:#fff; border-color:var(--navy)
 .card h2 a:hover { text-decoration:underline; }
 .meta { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12px; color:var(--text-2); align-items:center; }
 .persona { --c:var(--accent); color:var(--c); font-weight:700; text-decoration:none; }
-.comment { margin:0; }
+.comment { margin:0; white-space:pre-line; overflow-wrap:anywhere; }
 .products h3 { font-size:14px; margin:0 0 10px; }
 .products h3 small { font-size:11px; color:var(--text-2); font-weight:400; border:1px solid var(--border); border-radius:4px; padding:0 4px; margin-left:4px; }
 .product { position:relative; display:block; text-decoration:none; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px; margin-bottom:10px; }
@@ -116,11 +133,15 @@ nav.personas a.on { background:var(--navy); color:#fff; border-color:var(--navy)
 .product strong { display:block; font-size:14px; line-height:1.5; padding-right:34px; }
 .product small { display:block; color:var(--text-2); font-size:12px; }
 .product .go { display:inline-block; margin-top:8px; font-size:13px; font-weight:700; color:var(--accent); }
+.product-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px; margin:0 0 28px; }
+.product-grid .product { margin:0; }
+.cat { font-size:16px; margin:24px 0 10px; }
+.pr-tag { font-size:12px; color:var(--text-2); font-weight:400; border:1px solid var(--border); border-radius:4px; padding:0 5px; vertical-align:middle; }
 .pr { position:absolute; top:10px; right:10px; font-size:10px; font-weight:700; color:var(--text-2); border:1px solid var(--border); border-radius:4px; padding:0 5px; background:var(--bg); }
 article.full h1 { font-size:24px; line-height:1.45; margin:8px 0 16px; }
 .editor { border-left:4px solid var(--accent); background:var(--surface); border-radius:0 10px 10px 0; padding:14px 18px; margin:0 0 20px; }
 .editor b { display:block; font-size:12px; color:var(--accent); margin-bottom:4px; }
-.editor p { margin:0; font-size:16px; }
+.editor p { margin:0; font-size:16px; white-space:pre-line; overflow-wrap:anywhere; }
 blockquote.quote { margin:0 0 6px; padding:12px 16px; background:#efede6; border-radius:8px; color:#3c3c3f; font-size:14px; }
 .src { font-size:13px; color:var(--text-2); margin:0 0 20px; }
 .btn { display:inline-block; background:var(--navy); color:#fff; text-decoration:none; font-weight:700; padding:10px 18px; border-radius:8px; }
@@ -142,6 +163,8 @@ export interface PageOpts {
   canonical: string;
   personas: Persona[];
   activeHandle?: string;
+  /** ヘッダーで強調する、ペルソナ以外のページ */
+  section?: 'products';
   ogType?: 'website' | 'article';
   noindex?: boolean;
 }
@@ -175,13 +198,14 @@ ${o.noindex ? '<meta name="robots" content="noindex">' : ''}
 <header class="site"><div class="wrap">
   <div class="head"><a href="/"><img src="/logo.png" alt=""></a><a href="/"><strong>${esc(env.SITE_TITLE)}</strong><small>${esc(env.SITE_TAGLINE)}</small></a></div>
   <nav class="personas">
-    <a href="/" class="${o.activeHandle === undefined ? 'on' : ''}">すべて</a>
+    <a href="/" class="${o.activeHandle === undefined && !o.section ? 'on' : ''}">すべて</a>
     ${o.personas.map((p) => `<a href="/p/${esc(p.handle)}" class="${o.activeHandle === p.handle ? 'on' : ''}">${esc(p.name)}</a>`).join('')}
+    <a href="/products" class="${o.section === 'products' ? 'on' : ''}">おすすめ商品</a>
   </nav>
 </div></header>
 <main class="wrap">${body}</main>
 <footer class="site"><div class="wrap">
-  <nav><a href="/about">運営者情報</a><a href="/privacy">プライバシーポリシー</a><a href="/ad">広告について</a></nav>
+  <nav><a href="/products">おすすめ商品</a><a href="/about">運営者情報</a><a href="/privacy">プライバシーポリシー</a><a href="/ad">広告について</a></nav>
   <p>${amazonStatement(env)}</p>
   <p>記事の要約・引用は各出典元に帰属します。全文は出典元でお読みください。</p>
   <p>© ${esc(env.SITE_TITLE)}</p>

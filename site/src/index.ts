@@ -10,7 +10,7 @@
  * ロゴなどの画像は public/ から配信される（Worker より先に返る）
  */
 import { api, type Api, type Env } from './data';
-import { aboutPage, adPage, articlePage, home, notFound, personaPage, privacyPage } from './pages';
+import { aboutPage, adPage, articlePage, home, notFound, personaPage, privacyPage, productsPage } from './pages';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HANDLE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -45,6 +45,7 @@ async function sitemap(db: Api, url: URL): Promise<Response> {
   const [personas, articles] = await Promise.all([db.personas(), db.articles(undefined, 1000)]);
   const urls = [
     `${url.origin}/`,
+    `${url.origin}/products`,
     ...personas.map((p) => `${url.origin}/p/${encodeURIComponent(p.handle)}`),
     ...articles.map((a) => `${url.origin}/a/${a.no}`),
   ];
@@ -62,7 +63,8 @@ export default {
       if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method Not Allowed', { status: 405 });
 
       if (path === '/') return html(await home(env, db, url));
-      if (path === '/about') return html(await aboutPage(env, db, url));
+      if (path === '/products') return html(await productsPage(env, db, url));
+      if (path === '/about')return html(await aboutPage(env, db, url));
       if (path === '/privacy') return html(await privacyPage(env, db, url));
       if (path === '/ad') return html(await adPage(env, db, url));
       if (path === '/robots.txt') return new Response(`User-agent: *\nDisallow: /go/\nSitemap: ${url.origin}/sitemap.xml\n`, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });

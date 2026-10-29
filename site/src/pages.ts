@@ -1,6 +1,6 @@
 /* 各ページ。データを読んで HTML を返す */
 import type { Api, Env, Persona, Product } from './data';
-import { amazonStatement, articleCard, esc, layout, productBox, productCard, safeUrl } from './html';
+import { amazonStatement, articleCard, esc, layout, linkify, productBox, productCard, safeUrl } from './html';
 
 /** そのペルソナ向けの商品（ペルソナ指定なしなら全商品）から最大 n 件。ペルソナ未指定の商品は誰にでも出す */
 function pickProducts(products: Product[], handle: string | undefined, n: number, exclude: string[] = []): Product[] {
@@ -53,13 +53,32 @@ export async function articlePage(env: Env, db: Api, url: URL, no: number): Prom
           <span>${esc(a.category)}</span><time datetime="${esc(a.published_at)}">${date}</time>
         </div>
         <h1>${esc(a.title)}</h1>
-        <div class="editor"><b>編集部のひとこと</b><p>${esc(a.editor_comment)}</p></div>
+        <div class="editor"><b>編集部のひとこと</b><p>${linkify(a.editor_comment)}</p></div>
         ${a.excerpt ? `<blockquote class="quote"${href ? ` cite="${esc(href)}"` : ''}>${esc(a.excerpt)}</blockquote>` : ''}
         <p class="src">出典: ${href ? `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(a.source_name)}</a>` : esc(a.source_name)}</p>
         ${href ? `<p><a class="btn" href="${esc(href)}" target="_blank" rel="noopener">元の記事を読む ↗</a></p>` : ''}
       </article>
       <aside>${productBox('この記事に関連するおすすめ', cards)}</aside>
     </div>`);
+}
+
+/** 掲載中の商品の一覧。?p=<ペルソナ> でそのペルソナ向けに絞り、カテゴリごとに並べる */
+export async function productsPage(env: Env, db: Api, url: URL): Promise<string> {
+  const [personas, products] = await Promise.all([db.personas(), db.products()]);
+  const p = personas.find((x) => x.handle === url.searchParams.get('p'));
+  const list = pickProducts(products, p?.handle, products.length);
+  const groups = new Map<string, Product[]>();
+  for (const pr of list) groups.set(pr.category || 'その他', [...(groups.get(pr.category || 'その他') ?? []), pr]);
+  const chip = (handle: string | undefined, label: string): string =>
+    `<a href="/products${handle ? '?p=' + encodeURIComponent(handle) : ''}" class="${p?.handle === handle ? 'on' : ''}">${esc(label)}</a>`;
+  return layout(env, { title: 'おすすめ商品', description: '編集部がおすすめする商品・サービスの一覧です（広告を含みます）。', canonical: `${url.origin}/products`, personas, section: 'products' }, `
+    <section class="hero"><h1>おすすめ商品 <small class="pr-tag">広告</small></h1>
+      <p>読者像ごとに、編集部が選んだ商品・サービスです。このページのリンクはすべてアフィリエイト広告です。<a href="/ad">広告について</a></p></section>
+    <nav class="personas" style="padding-top:12px">${chip(undefined, 'すべて')}${personas.map((x) => chip(x.handle, x.name)).join('')}</nav>
+    ${[...groups].map(([cat, items]) => `
+      <h2 class="cat">${esc(cat)}</h2>
+      <div class="product-grid">${items.map((pr) => productCard(pr, 'list', { personaHandle: p?.handle })).join('')}</div>`).join('')
+      || '<p class="empty">掲載中の商品はまだありません。</p>'}`);
 }
 
 function prose(env: Env, url: URL, personas: Persona[], title: string, body: string): string {
