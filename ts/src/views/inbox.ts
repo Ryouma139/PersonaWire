@@ -16,9 +16,12 @@ interface Filters {
 
 const f: Filters = { persona: '', status: '', type: '', threshold: 0, date: '' };
 
-/** サイドバーのカレンダーから、収集日の絞り込みを決める（'' で解除） */
+/**
+ * サイドバーのカレンダーから、収集日の絞り込みを決める（'' で解除）。
+ * カレンダーの件数と一覧の件数が合うよう、ほかの絞り込み（ペルソナ・状態・種別・しきい値）は外す
+ */
 export function setDateFilter(value: string): void {
-  f.date = value;
+  Object.assign(f, { persona: '', status: '', type: '', threshold: 0, date: value });
 }
 export const dateFilter = (): string => f.date;
 let selectedId: string | null = null;
@@ -138,6 +141,8 @@ function render(root: HTMLElement): void {
   if (hashId && store.item(hashId) && selectedId !== hashId) selectedId = hashId;
   if (f.persona && !store.persona(f.persona)) f.persona = '';
   const list = filtered(s.items);
+  // カレンダーで選んだ日・月の記事の総数（ほかの絞り込みをかける前。カレンダーの件数と同じ）
+  const dateTotal = f.date ? s.items.filter((i) => ui.localDay(i.collectedAt).startsWith(f.date)).length : 0;
   // 選んでいた記事が絞り込みで見えなくなったら、一覧の先頭を選ぶ
   if (!list.some((i) => i.id === selectedId)) selectedId = list[0]?.id ?? null;
   const sel = store.item(selectedId);
@@ -158,7 +163,7 @@ function render(root: HTMLElement): void {
       <select data-filter="persona"><option value="">すべてのペルソナ</option>${s.personas.map((p) => `<option value="${p.id}" ${f.persona === p.id ? 'selected' : ''}>${ui.esc(p.code)} ${ui.esc(p.name)}</option>`).join('')}</select>
       <select data-filter="status"><option value="">すべての状態</option>${STATUS_KEYS.map((k) => `<option value="${k}" ${f.status === k ? 'selected' : ''}>${ui.STATUS[k].label}</option>`).join('')}</select>
       <select data-filter="type"><option value="">News + SNS</option><option value="news" ${f.type === 'news' ? 'selected' : ''}>News</option><option value="sns" ${f.type === 'sns' ? 'selected' : ''}>SNS</option></select>
-      ${f.date ? `<span class="date-chip">${ui.esc(ui.dayLabel(f.date))}の記事 ${list.length} 件<button class="icon-btn" data-act="clear-date" aria-label="日付の絞り込みを解除">✕</button></span>` : ''}
+      ${f.date ? `<span class="date-chip">${ui.esc(ui.dayLabel(f.date))}の記事 ${list.length === dateTotal ? `${dateTotal} 件` : `${list.length} / ${dateTotal} 件`}<button class="icon-btn" data-act="clear-date" aria-label="日付の絞り込みを解除">✕</button></span>` : ''}
       <label class="range"><span>関連しきい値</span><input type="range" min="0" max="100" step="5" value="${f.threshold}" data-filter="threshold"><b class="mono" id="th-val">${f.threshold}</b></label>
     </div>
 
