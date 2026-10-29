@@ -100,6 +100,14 @@ values ('YOUTUBE', 'rss', 'YouTube <チャンネル名>', 'https://www.youtube.c
         '{"max_items": 2, "category": "テクノロジー", "category_personas": {"テクノロジー": ["P01"]}}');
 ```
 
+```sql
+-- Medium のタグ（RSS。英語の記事。トップページには RSS が無く、タグ・人・publication ごとにある）
+-- 記事の URL に付く追跡用のクエリ（?source=rss-...）と、要約の末尾の「Continue reading on Medium »」は、取り込むときに外す
+insert into public.sources (kind, method, name, target, options)
+values ('MEDIUM', 'rss', 'Medium #<タグ>', 'https://medium.com/feed/tag/<タグ>',
+        '{"max_items": 2, "category": "Japan", "category_personas": {"Japan": ["P08"]}}');
+```
+
 チャンネル ID は、YouTube のチャンネルページで「概要」→「チャンネルを共有」→「チャンネル ID をコピー」で取れる（`UC` で始まる 24 文字）。
 
 1 回で多く読める収集先（Notion など）は、`daily_max` で 1 日（日本時間）に登録する数を絞る。重複を除いたあとに数えるので、超えた分は翌日以降の実行で拾う（`max_items` は読む前に絞るので、2 時間に多く入る収集先に使うと古い記事を取りこぼす）。

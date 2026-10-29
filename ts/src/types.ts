@@ -16,7 +16,7 @@ export interface Persona {
   active: boolean;
 }
 
-export type SourceKind = 'NEWS' | 'YOUTUBE' | 'NOTE' | 'X' | 'THREADS';
+export type SourceKind = 'NEWS' | 'YOUTUBE' | 'NOTE' | 'X' | 'THREADS' | 'MEDIUM';
 export type ItemType = 'news' | 'sns';
 export type Verdict = 'adopt' | 'hold' | 'reject';
 export type ItemStatus = 'pending' | 'approved' | 'rejected' | 'published';

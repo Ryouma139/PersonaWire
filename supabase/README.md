@@ -15,6 +15,7 @@
 | [migrations/20261030010000_notion_daily_max.sql](migrations/20261030010000_notion_daily_max.sql) | Notion news_link から登録する記事を 1 日 40 件までにする（`options.daily_max`） |
 | [migrations/20261031000000_multi_site.sql](migrations/20261031000000_multi_site.sql) | 公開サイトを複数持てるようにする。サイト（`sites`）、サイトで扱うペルソナ（`site_personas`）、商品のサイトごとのリンク（`product_links`）、クリックのサイト（`link_clicks.site_id`）。公開用のビューに `site_code` を追加。今のデータは 1 つ目のサイト `persona-wire` に移す |
 | [migrations/20261031010000_site_adoutor.sql](migrations/20261031010000_site_adoutor.sql) | 2 つ目のサイト `adoutor`（海外の旅行者向け、英語）と、ペルソナ P06〜P08 を登録する。**公開サイト（site/）がサイトで絞り込む版になってから実行する** |
+| [migrations/20261101000000_medium_source.sql](migrations/20261101000000_medium_source.sql) | 記事の種類に `MEDIUM` を足し、Medium のタグ #japan（英語）を収集先に登録する（1 回 2 件まで、仮の主担当は P08） |
 | [seed.sql](seed.sql) | 開発用のサンプルデータ（ペルソナ 5 件、記事 14 件、スコア 70 件）。`ts/src/store.ts` の初期データから自動生成。何度実行しても重複しない |
 
 ## 適用のしかた

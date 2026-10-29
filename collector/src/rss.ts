@@ -23,6 +23,17 @@ export function plain(html: string): string {
     .slice(0, 200);
 }
 
+/** Medium の記事 URL に付く追跡用のクエリ（?source=rss-...）を外す。同じ記事が別の URL として二重に入らないように */
+function cleanUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'medium.com' || u.hostname.endsWith('.medium.com')) u.search = '';
+    return u.href;
+  } catch {
+    return url;
+  }
+}
+
 function iso(v: string, fallback: string): string {
   const t = Date.parse(v);
   return isNaN(t) ? fallback : new Date(t).toISOString();
@@ -39,13 +50,14 @@ export async function rssCandidates(source: Source, f: Fetch = fetch): Promise<C
   if (xml.rss?.channel) {
     const ch = xml.rss.channel;
     return list(ch.item).map((it: Record<string, Node>) => {
-      const url = str(it.link);
+      const url = cleanUrl(str(it.link));
       return {
         title: str(it.title),
         url,
         sourceName: source.name || str(ch.title),
         category,
-        excerpt: plain(str(it.description)),
+        // Medium の要約の末尾に付く「Continue reading on Medium »」は外す
+        excerpt: plain(str(it.description).replace(/Continue reading on Medium »/, '')),
         collectedAt: iso(str(it.pubDate), now),
         kind: kindOf(url, source.kind),
       };

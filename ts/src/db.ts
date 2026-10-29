@@ -114,7 +114,7 @@ interface LogRow {
 /** 画面から追加・編集できる記事の項目 */
 export type ArticleFields = Pick<Item, 'kind' | 'source' | 'category' | 'title' | 'excerpt' | 'url'>;
 
-const NOTION_DB: Record<SourceKind, NotionDbName> = { NEWS: 'articles', YOUTUBE: 'sns_posts', NOTE: 'sns_posts', X: 'sns_posts', THREADS: 'sns_posts' };
+const NOTION_DB: Record<SourceKind, NotionDbName> = { NEWS: 'articles', YOUTUBE: 'sns_posts', NOTE: 'sns_posts', X: 'sns_posts', THREADS: 'sns_posts', MEDIUM: 'sns_posts' };
 
 function fromFields(a: Partial<ArticleFields>): Partial<ArticleRow> {
   const row: Partial<ArticleRow> = {};

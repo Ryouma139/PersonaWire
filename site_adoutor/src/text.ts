@@ -33,7 +33,7 @@ export const en: Text = {
   noProducts: 'No recommendations yet.',
   otherCategory: 'Other',
 
-  kind: { NEWS: 'News', YOUTUBE: 'YouTube', NOTE: 'note', X: 'X', THREADS: 'Threads' },
+  kind: { NEWS: 'News', YOUTUBE: 'YouTube', NOTE: 'note', X: 'X', THREADS: 'Threads', MEDIUM: 'Medium' },
   aspButton: { amazon: 'View on Amazon', rakuten: 'View on Rakuten', a8: 'Learn more', moshimo: 'Learn more', other: 'Learn more' },
   amazonStatement: () => 'As an Amazon Associate, we earn from qualifying purchases.',
 

@@ -1,6 +1,6 @@
 /* 収集先ごとの読み取り結果を、共通の形にそろえる */
 
-export type SourceKind = 'NEWS' | 'YOUTUBE' | 'NOTE' | 'X' | 'THREADS';
+export type SourceKind = 'NEWS' | 'YOUTUBE' | 'NOTE' | 'X' | 'THREADS' | 'MEDIUM';
 
 export interface Source {
   id: string;
@@ -54,6 +54,7 @@ export function kindOf(url: string, fallback: SourceKind | null): SourceKind {
   if (host === 'note.com') return 'NOTE';
   if (host === 'x.com' || host === 'twitter.com') return 'X';
   if (host === 'threads.net' || host === 'threads.com') return 'THREADS';
+  if (host === 'medium.com' || host.endsWith('.medium.com')) return 'MEDIUM';
   return fallback ?? 'NEWS';
 }
 

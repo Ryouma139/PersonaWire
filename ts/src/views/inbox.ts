@@ -34,7 +34,7 @@ let reloading = false;
 let collecting = false;
 
 const NOTION_DBS: NotionDbName[] = ['articles', 'sns_posts', 'ideas'];
-const KINDS: SourceKind[] = ['NEWS', 'YOUTUBE', 'NOTE', 'X', 'THREADS'];
+const KINDS: SourceKind[] = ['NEWS', 'YOUTUBE', 'NOTE', 'X', 'THREADS', 'MEDIUM'];
 // 却下した記事を自動で削除するまでの日数（collector/wrangler.jsonc の PURGE_REJECTED_DAYS と合わせる）
 const PURGE_DAYS = 5;
 const STATUS_KEYS = Object.keys(ui.STATUS) as ItemStatus[];

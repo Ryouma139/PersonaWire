@@ -98,7 +98,7 @@ export const ja: Text = {
   noProducts: '掲載中の商品はまだありません。',
   otherCategory: 'その他',
 
-  kind: { NEWS: 'ニュース', YOUTUBE: 'YouTube', NOTE: 'note', X: 'X', THREADS: 'Threads' },
+  kind: { NEWS: 'ニュース', YOUTUBE: 'YouTube', NOTE: 'note', X: 'X', THREADS: 'Threads', MEDIUM: 'Medium' },
   aspButton: { amazon: 'Amazonで見る', rakuten: '楽天市場で見る', a8: '詳しく見る', moshimo: '詳しく見る', other: '詳しく見る' },
   amazonStatement: (siteName) => `Amazonのアソシエイトとして、${siteName}は適格販売により収入を得ています。`,
 
