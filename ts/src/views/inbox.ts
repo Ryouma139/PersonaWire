@@ -129,7 +129,7 @@ function detail(it: Item | undefined): string {
       ${products.length ? `<div class="check-row">${products.map((pr) => `
         <label class="check"><input type="checkbox" data-act="product" data-id="${it.id}" value="${pr.id}" ${it.productIds.includes(pr.id) ? 'checked' : ''}>${ui.esc(pr.name)}<small class="muted">${ASPS[pr.asp]}${pr.active ? '' : '・無効'}</small></label>`).join('')}</div>`
         : '<p class="muted small">商品がまだありません。<a href="#products" class="link">商品・リンク</a>で登録できます</p>'}
-      <p class="muted small">記事ページには 3 件まで出ます。足りない分は、主担当ペルソナ向けの商品で自動で埋めます</p>
+      <p class="muted small">記事ページには、ここで選んだ商品（有効で掲載期間中のもの）だけが出ます。選ばなければ商品の枠は出ません</p>
 
       ${it.status === 'rejected' ? `<p class="muted small">却下した記事は、最後の更新から ${PURGE_DAYS} 日たつと自動で削除されます（${ui.fmtDate(new Date(Date.parse(it.updatedAt) + PURGE_DAYS * 864e5).toISOString())} 以降の収集時）。残したい場合は「要確認に戻す」か「採用する」を押してください</p>` : ''}
       <div class="detail-actions">

@@ -39,10 +39,9 @@ export async function articlePage(env: Env, db: Api, url: URL, no: number): Prom
   if (!a) return null;
   const href = safeUrl(a.url);
   const handle = a.persona_handle ?? undefined;
-  // 記事に紐づけた商品を先に、足りなければそのペルソナ向けの商品で 3 件まで埋める
+  // 記事に紐づけた商品（掲載中のもの）だけを出す。紐づけが無ければ商品の枠は出さない
   const chosen = linked.map((id) => products.find((p) => p.id === id)).filter((p): p is Product => !!p);
-  const fill = pickProducts(products, handle, Math.max(0, 3 - chosen.length), chosen.map((p) => p.id));
-  const cards = [...chosen, ...fill].map((p) => productCard(p, 'article', { articleNo: a.no, personaHandle: handle }));
+  const cards = chosen.map((p) => productCard(p, 'article', { articleNo: a.no, personaHandle: handle }));
   const date = new Date(a.published_at).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'long', day: 'numeric' });
 
   return layout(env, { title: a.title, description: a.editor_comment, canonical: `${url.origin}/a/${a.no}`, personas, activeHandle: handle, ogType: 'article' }, `
