@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "persona-wire-site",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  // 読者向けの公開サイト。公開中の記事と掲載中の商品を Supabase から読み、ページを組み立てて返す（src/index.ts）。
+  // ロゴなどの画像は public/ から、そのまま配信する
+  "assets": { "directory": "./public" },
+  "vars": {
+    "SUPABASE_URL": "https://dxfzlwxibsdkaighzzjo.supabase.co",
+    // 誰が使ってもよい公開用の鍵（Publishable key）。公開用のビューと、クリックを記録する関数しか使えない。
+    // Secret key は、このサイトには絶対に置かない
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_ov9sVqqpNK_2QtCtn33dCA_qUag_JAO",
+    "SITE_TITLE": "Persona Wire",
+    "SITE_TAGLINE": "あなたのためのニュースを、編集者が厳選。",
+    // 運営者情報のページに出す。空のあいだは「準備中」と表示する（ASP の審査前に埋める）
+    "OPERATOR_NAME": "",
+    // 問い合わせ先（フォームの URL など）。メールアドレスを直接載せる場合は mailto: で書く
+    "CONTACT_URL": ""
+  },
+  "observability": { "enabled": true }
+}

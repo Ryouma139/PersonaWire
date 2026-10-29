@@ -3,6 +3,7 @@ import { hasScores, isUsable, store } from '../store';
 import { db, dbMessage, type ArticleFields } from '../db';
 import { auth } from '../auth';
 import * as ui from '../ui';
+import { ASPS } from './products';
 import type { Issue, Item, ItemStatus, ItemType, NotionDbName, Persona, PersonaId, SourceKind, View } from '../types';
 
 interface Filters {
@@ -24,6 +25,10 @@ export function setDateFilter(value: string): void {
   Object.assign(f, { persona: '', status: '', type: '', threshold: 0, date: value });
 }
 export const dateFilter = (): string => f.date;
+/** 公開に必要な編集コメントの字数（DB の articles_before_update と同じ） */
+const MIN_COMMENT = 20;
+const commentLength = (s: string): number => [...s.trim()].length;
+
 let selectedId: string | null = null;
 let reloading = false;
 let collecting = false;
@@ -72,6 +77,8 @@ function detail(it: Item | undefined): string {
   const sorted = [...s.personas].sort((a, b) => (it.scores[b.id] ?? 0) - (it.scores[a.id] ?? 0));
   const drafts = isUsable(it.status) ? s.issues.filter((x) => x.status !== 'sent') : [];
   const href = ui.safeUrl(it.url);
+  // 紐づけ済みの商品は、無効になっていても外せるように出す
+  const products = s.products.filter((pr) => pr.active || it.productIds.includes(pr.id));
   return `
     <section class="card detail" id="detail">
       <button class="btn btn-quiet btn-sm detail-back" data-act="back">↑ 一覧に戻る</button>
@@ -113,9 +120,16 @@ function detail(it: Item | undefined): string {
       ${hasScores(it) ? `<h3 class="label">article_persona_scores に保存される内容</h3>
       <pre class="code">${ui.esc(scoresBlock(it))}</pre>` : ''}
 
-      <label class="field"><span>編集コメント（公開サイト・配信に表示）</span>
+      <label class="field"><span>編集コメント（公開サイト・配信に表示。公開するには ${MIN_COMMENT} 字以上）</span>
         <textarea rows="2" data-act="comment" data-id="${it.id}" placeholder="読者に向けたひとこと">${ui.esc(it.comment)}</textarea>
+        <small class="muted">${commentLength(it.comment)} 字</small>
       </label>
+
+      <h3 class="label">関連商品（記事ページに PR として表示）</h3>
+      ${products.length ? `<div class="check-row">${products.map((pr) => `
+        <label class="check"><input type="checkbox" data-act="product" data-id="${it.id}" value="${pr.id}" ${it.productIds.includes(pr.id) ? 'checked' : ''}>${ui.esc(pr.name)}<small class="muted">${ASPS[pr.asp]}${pr.active ? '' : '・無効'}</small></label>`).join('')}</div>`
+        : '<p class="muted small">商品がまだありません。<a href="#products" class="link">商品・リンク</a>で登録できます</p>'}
+      <p class="muted small">記事ページには 3 件まで出ます。足りない分は、主担当ペルソナ向けの商品で自動で埋めます</p>
 
       ${it.status === 'rejected' ? `<p class="muted small">却下した記事は、最後の更新から ${PURGE_DAYS} 日たつと自動で削除されます（${ui.fmtDate(new Date(Date.parse(it.updatedAt) + PURGE_DAYS * 864e5).toISOString())} 以降の収集時）。残したい場合は「要確認に戻す」か「採用する」を押してください</p>` : ''}
       <div class="detail-actions">
@@ -226,6 +240,11 @@ function render(root: HTMLElement): void {
       const comment = el.value;
       store.update(() => { it.comment = comment; });
       void store.commit(db.updateArticle(it.id, { comment }), 'コメントを保存しました');
+    } else if (el.dataset.act === 'product' && it) {
+      const checked = (el as HTMLInputElement).checked;
+      const productIds = checked ? [...it.productIds, el.value] : it.productIds.filter((x) => x !== el.value);
+      store.update(() => { it.productIds = productIds; });
+      void store.commit(db.setArticleProducts(it.id, productIds), '関連商品を保存しました');
     }
     else if (el.dataset.filter) { setFilter(el.dataset.filter, el.value); render(root); }
   };
@@ -245,6 +264,10 @@ function setFilter(key: string, value: string): void {
 function setStatus(id: string, to: ItemStatus): void {
   const it = store.item(id);
   if (!it) return;
+  if (to === 'published' && commentLength(it.comment) < MIN_COMMENT) {
+    ui.toast(`公開するには、編集コメントを ${MIN_COMMENT} 字以上書いてください（今 ${commentLength(it.comment)} 字）`, 'warn');
+    return;
+  }
   const label = ui.STATUS[to].label;
   let removed: Issue[] = [];
   store.update(() => { removed = store.setItemStatus(it, to); });

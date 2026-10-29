@@ -17,7 +17,6 @@ function render(root: HTMLElement): void {
   const p = store.persona(tab);
   const products = s.products.filter((pr) => pr.active && (!tab || pr.personaIds.includes(tab))).slice(0, 3);
   const plan = s.deliveries.find((d) => d.status === 'active' && (!tab || d.persona === tab));
-  const path = p ? '/' + p.handle : '/';
 
   root.innerHTML = `
     ${ui.pageHead('公開サイト', '読者に表示される公開ページを確認します',
@@ -27,7 +26,7 @@ function render(root: HTMLElement): void {
       </div>`)}
 
     <div class="browser ${device}">
-      <div class="browser-bar"><span class="dots"><i></i><i></i><i></i></span><span class="addr">https://${ui.esc(s.site.domain)}${ui.esc(path)}</span></div>
+      <div class="browser-bar"><span class="dots"><i></i><i></i><i></i></span><span class="addr">${s.site.url ? `<a href="${ui.esc(s.site.url + (p ? '/p/' + p.handle : '/'))}" target="_blank" rel="noopener" title="公開サイトを開く">${ui.esc(s.site.url)}${ui.esc(p ? '/p/' + p.handle : '/')}</a>` : '公開サイトの URL が未設定です（VITE_SITE_URL）'}</span></div>
       <div class="site" style="--c:${p ? ui.esc(p.color) : '#3d6fe0'}">
         <header class="site-head">
           <strong>${ui.esc(s.site.title)}</strong>

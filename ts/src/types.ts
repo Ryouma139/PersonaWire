@@ -47,6 +47,8 @@ export interface Item {
   /** null = AI 判定待ち（スコアがまだ無い） */
   verdict: Verdict | null;
   persona: PersonaId | null;
+  /** 記事ページに出す、手で選んだ関連商品 */
+  productIds: string[];
 }
 
 export type DeliveryStatus = 'active' | 'paused';
@@ -78,16 +80,31 @@ export interface Issue {
   opens: number | null;
 }
 
+/** アフィリエイトの提供元（ASP） */
+export type Asp = 'amazon' | 'rakuten' | 'a8' | 'moshimo' | 'other';
+
 export interface Product {
   id: string;
   name: string;
   category: string;
+  asp: Asp;
+  /** ASP が発行したアフィリエイトリンク（https） */
   url: string;
+  imageUrl: string | null;
   price: number;
+  /** 社内メモ（公開しない） */
+  note: string;
   personaIds: PersonaId[];
-  clicks: number;
-  conversions: number;
   active: boolean;
+  /** 掲載期間（空 = 制限なし） */
+  startsAt: string | null;
+  endsAt: string | null;
+  /** 成果・報酬。ASP の管理画面を見て手で入れる（累計） */
+  conversions: number;
+  revenue: number;
+  /** クリック数（公開サイトで記録したもの） */
+  clicks30: number;
+  clicksTotal: number;
 }
 
 export type SyncDirection = 'both' | 'push' | 'pull';
@@ -156,7 +173,8 @@ export interface CollectRun {
 
 export interface SiteConfig {
   title: string;
-  domain: string;
+  /** 公開サイトの URL（末尾の / なし） */
+  url: string;
 }
 
 export interface AppState {

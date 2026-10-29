@@ -35,7 +35,7 @@ function render(root: HTMLElement): void {
   const activePlans = s.deliveries.filter((d) => d.status === 'active');
   const subs = activePlans.reduce((a, d) => a + d.subscribers, 0);
   const mrr = activePlans.reduce((a, d) => a + d.subscribers * d.price, 0);
-  const clicks = s.products.reduce((a, p) => a + p.clicks, 0);
+  const clicks = s.products.reduce((a, p) => a + p.clicks30, 0);
 
   // 直近7日（今日を含む）を、記事の収集日ごとに数える
   const daily: DailyStat[] = Array.from({ length: 7 }, (_, k) => {
@@ -62,7 +62,7 @@ function render(root: HTMLElement): void {
       <div class="kpi"><span>AI採用候補</span><strong>${candidates.length}</strong><small>要確認 ${pending.length} 件中</small></div>
       <div class="kpi"><span>有料購読者</span><strong>${ui.num(subs)}</strong><small>配信中 ${activePlans.length} プラン</small></div>
       <div class="kpi"><span>月間売上 (MRR)</span><strong>${ui.yen(mrr)}</strong><small>有料配信の合計</small></div>
-      <div class="kpi"><span>商品クリック</span><strong>${ui.num(clicks)}</strong><small>CV ${ui.num(s.products.reduce((a, p) => a + p.conversions, 0))}</small></div>
+      <div class="kpi"><span>商品クリック（30日）</span><strong>${ui.num(clicks)}</strong><small>CV ${ui.num(s.products.reduce((a, p) => a + p.conversions, 0))}</small></div>
     </section>
 
     <div class="grid-2">

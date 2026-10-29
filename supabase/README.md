@@ -11,6 +11,7 @@
 | [migrations/20261029030000_note_source.sql](migrations/20261029030000_note_source.sql) | note 全体の注目記事（`https://note.com/rss`）を収集先に登録（1 回 2 件まで） |
 | [migrations/20261029040000_note_hashtags.sql](migrations/20261029040000_note_hashtags.sql) | note の収集をハッシュタグ（#投資・#筋トレ・#子育て・#節約・#移住、各 1 回 2 件まで）に切り替え、注目記事は止める |
 | [migrations/20261029050000_article_excerpt.sql](migrations/20261029050000_article_excerpt.sql) | 要約が空の記事に元記事の概要を入れる関数と、取得を試した印（`articles.excerpt_checked_at`）。実行履歴に件数の列を追加 |
+| [migrations/20261030000000_site_affiliate.sql](migrations/20261030000000_site_affiliate.sql) | 公開サイトとアフィリエイト。商品（`products`、`product_personas`）、記事と商品の紐づけ（`article_products`）、クリック記録（`link_clicks`）、公開サイト用のビュー（`public_*`）、クリックを記録する `record_click`。公開には編集コメント 20 字以上が必要、公開・非公開の切り替えは管理者だけ |
 | [seed.sql](seed.sql) | 開発用のサンプルデータ（ペルソナ 5 件、記事 14 件、スコア 70 件）。`ts/src/store.ts` の初期データから自動生成。何度実行しても重複しない |
 
 ## 適用のしかた

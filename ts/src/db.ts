@@ -1,6 +1,6 @@
-/* Persona Wire — Supabase の表との読み書き（ペルソナ・記事・スコア・操作ログ） */
+/* Persona Wire — Supabase の表との読み書き（ペルソナ・記事・スコア・商品・操作ログ） */
 import { supabase } from './auth';
-import type { Activity, CollectRun, Item, ItemStatus, NotionDbName, Persona, PersonaId, SourceKind, Verdict } from './types';
+import type { Activity, Asp, CollectRun, Item, ItemStatus, NotionDbName, Persona, PersonaId, Product, SourceKind, Verdict } from './types';
 
 interface PersonaRow {
   id: string;
@@ -36,7 +36,57 @@ interface ArticleRow {
   editor_comment: string;
   notion_db: NotionDbName;
   article_persona_scores: Array<{ persona_id: string; relevance_score: number; reasons: string[] }>;
+  article_products: Array<{ product_id: string }>;
 }
+
+interface ProductRow {
+  id: string;
+  name: string;
+  category: string;
+  asp: Asp;
+  url: string;
+  image_url: string | null;
+  price: number;
+  note: string;
+  active: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  conversions: number;
+  revenue: number;
+  product_personas: Array<{ persona_id: string }>;
+}
+
+interface ClickRow {
+  product_id: string;
+  clicks_30d: number;
+  clicks_total: number;
+}
+
+/** 画面から追加・編集できる商品の項目 */
+export type ProductFields = Omit<Product, 'id' | 'clicks30' | 'clicksTotal'>;
+
+const toProduct = (r: ProductRow, clicks: ClickRow | undefined): Product => ({
+  id: r.id, name: r.name, category: r.category, asp: r.asp, url: r.url, imageUrl: r.image_url, price: r.price, note: r.note,
+  personaIds: r.product_personas.map((x) => x.persona_id), active: r.active, startsAt: r.starts_at, endsAt: r.ends_at,
+  conversions: r.conversions, revenue: r.revenue, clicks30: clicks?.clicks_30d ?? 0, clicksTotal: clicks?.clicks_total ?? 0,
+});
+
+const fromProduct = (p: Partial<ProductFields>): Partial<Omit<ProductRow, 'id' | 'product_personas'>> => {
+  const row: Partial<Omit<ProductRow, 'id' | 'product_personas'>> = {};
+  if (p.name !== undefined) row.name = p.name;
+  if (p.category !== undefined) row.category = p.category;
+  if (p.asp !== undefined) row.asp = p.asp;
+  if (p.url !== undefined) row.url = p.url;
+  if (p.imageUrl !== undefined) row.image_url = p.imageUrl;
+  if (p.price !== undefined) row.price = p.price;
+  if (p.note !== undefined) row.note = p.note;
+  if (p.active !== undefined) row.active = p.active;
+  if (p.startsAt !== undefined) row.starts_at = p.startsAt;
+  if (p.endsAt !== undefined) row.ends_at = p.endsAt;
+  if (p.conversions !== undefined) row.conversions = p.conversions;
+  if (p.revenue !== undefined) row.revenue = p.revenue;
+  return row;
+};
 
 interface RunRow {
   started_at: string;
@@ -98,6 +148,7 @@ function toItem(r: ArticleRow): Item {
     id: r.id, no: r.no, type: r.type, kind: r.kind, source: r.source_name, category: r.category, title: r.title,
     excerpt: r.excerpt, url: r.url, comment: r.editor_comment, notionDb: r.notion_db, status: r.status,
     collectedAt: r.collected_at, fetchedAt: r.created_at, updatedAt: r.updated_at, sourceId: r.source_id, verdict: r.verdict, persona: r.primary_persona_id, scores, reasons,
+    productIds: r.article_products.map((x) => x.product_id),
   };
 }
 
@@ -122,27 +173,73 @@ export function dbMessage(e: unknown): string {
   if (/duplicate key.*code/i.test(raw)) return 'そのコードは使われています';
   if (/duplicate key.*handle/i.test(raw)) return 'そのスラッグは使われています';
   if (/personas_color_check/i.test(raw)) return 'カラーの形式が正しくありません';
+  if (/products_url_check/i.test(raw)) return 'リンクは https:// で始まる URL にしてください';
+  if (/products_image_url_check/i.test(raw)) return '画像の URL は https:// で始めてください';
   return raw;
 }
 
 export const db = {
-  async loadAll(): Promise<{ personas: Persona[]; items: Item[]; activity: Activity[]; runs: CollectRun[] }> {
-    const [p, a, l, r] = await Promise.all([
+  async loadAll(): Promise<{ personas: Persona[]; items: Item[]; products: Product[]; activity: Activity[]; runs: CollectRun[] }> {
+    const [p, a, pr, c, l, r] = await Promise.all([
       supabase.from('personas').select('*').order('code'),
-      supabase.from('articles').select('*, article_persona_scores(persona_id, relevance_score, reasons)').order('collected_at', { ascending: false }),
+      supabase.from('articles').select('*, article_persona_scores(persona_id, relevance_score, reasons), article_products(product_id)').order('collected_at', { ascending: false }),
+      supabase.from('products').select('*, product_personas(persona_id)').order('created_at', { ascending: false }),
+      supabase.from('product_click_counts').select('*'),
       supabase.from('activity_logs').select('created_at, action, detail, actor, users(name)').order('created_at', { ascending: false }).limit(30),
       supabase.from('collect_runs').select('started_at, finished_at, trigger, ok, inserted, skipped, purged, message').order('started_at', { ascending: false }).limit(10),
     ]);
-    if (p.error) throw p.error;
-    if (a.error) throw a.error;
-    if (l.error) throw l.error;
-    if (r.error) throw r.error;
+    for (const res of [p, a, pr, c, l, r]) if (res.error) throw res.error;
+    const clicks = new Map((c.data as ClickRow[]).map((x) => [x.product_id, x]));
     return {
       personas: (p.data as PersonaRow[]).map(toPersona),
-      items: (a.data as ArticleRow[]).map(toItem),
+      items: (a.data as unknown as ArticleRow[]).map(toItem),
+      products: (pr.data as ProductRow[]).map((x) => toProduct(x, clicks.get(x.id))),
       activity: (l.data as unknown as LogRow[]).map(toActivity),
       runs: (r.data as RunRow[]).map(toRun),
     };
+  },
+
+  /** 商品を追加する。追加した商品の id を返す */
+  async insertProduct(p: ProductFields): Promise<string> {
+    const { data, error } = await supabase.from('products').insert(fromProduct(p)).select('id');
+    if (error) throw error;
+    const id = changed(data)[0].id as string;
+    await db.setProductPersonas(id, p.personaIds);
+    return id;
+  },
+
+  async updateProduct(id: string, p: Partial<ProductFields>): Promise<void> {
+    const row = fromProduct(p);
+    if (Object.keys(row).length) {
+      const { data, error } = await supabase.from('products').update(row).eq('id', id).select('id');
+      if (error) throw error;
+      changed(data);
+    }
+    if (p.personaIds) await db.setProductPersonas(id, p.personaIds);
+  },
+
+  async deleteProduct(id: string): Promise<void> {
+    const { data, error } = await supabase.from('products').delete().eq('id', id).select('id');
+    if (error) throw error;
+    changed(data);
+  },
+
+  /** 商品を出すペルソナを、渡したものに置き換える */
+  async setProductPersonas(productId: string, personaIds: PersonaId[]): Promise<void> {
+    const del = await supabase.from('product_personas').delete().eq('product_id', productId);
+    if (del.error) throw del.error;
+    if (!personaIds.length) return;
+    const { error } = await supabase.from('product_personas').insert(personaIds.map((persona_id) => ({ product_id: productId, persona_id })));
+    if (error) throw error;
+  },
+
+  /** 記事の関連商品を、渡したものに置き換える */
+  async setArticleProducts(articleId: string, productIds: string[]): Promise<void> {
+    const del = await supabase.from('article_products').delete().eq('article_id', articleId);
+    if (del.error) throw del.error;
+    if (!productIds.length) return;
+    const { error } = await supabase.from('article_products').insert(productIds.map((product_id) => ({ article_id: articleId, product_id })));
+    if (error) throw error;
   },
 
   /** 収集バッチを今すぐ動かす。ログイン中の人の証明書を渡し、バッチ側で承認済みメンバーかを確かめる */
