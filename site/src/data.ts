@@ -7,6 +7,8 @@ export interface Env {
   SITE_TITLE: string;
   SITE_TAGLINE: string;
   OPERATOR_NAME: string;
+  OPERATOR_SITE_URL: string;
+  OPERATOR_X_URL: string;
   CONTACT_URL: string;
 }
 

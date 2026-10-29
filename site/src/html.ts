@@ -147,6 +147,7 @@ blockquote.quote { margin:0 0 6px; padding:12px 16px; background:#efede6; border
 .btn { display:inline-block; background:var(--navy); color:#fff; text-decoration:none; font-weight:700; padding:10px 18px; border-radius:8px; }
 .prose h1 { font-size:22px; }
 .prose h2 { font-size:17px; margin-top:28px; }
+.prose iframe.form { display:block; width:100%; max-width:640px; height:1307px; border:0; background:#fff; border-radius:10px; }
 .empty { color:var(--text-2); padding:24px 0; }
 footer.site { border-top:1px solid var(--border); background:var(--surface); font-size:12px; color:var(--text-2); padding:20px 0 28px; }
 footer.site nav { display:flex; flex-wrap:wrap; gap:6px 16px; margin-bottom:8px; }

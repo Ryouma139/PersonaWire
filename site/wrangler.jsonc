@@ -14,9 +14,13 @@
     "SITE_TITLE": "Persona Wire",
     "SITE_TAGLINE": "あなたのためのニュースを、編集者が厳選。",
     // 運営者情報のページに出す。空のあいだは「準備中」と表示する（ASP の審査前に埋める）
-    "OPERATOR_NAME": "",
-    // 問い合わせ先（フォームの URL など）。メールアドレスを直接載せる場合は mailto: で書く
-    "CONTACT_URL": ""
+    "OPERATOR_NAME": "R（ITフリーランサー23歳）",
+    // 運営者のサイトと X のアカウント（運営者情報のページにリンクを出す。空なら出さない）
+    "OPERATOR_SITE_URL": "https://product-adree.vercel.app/",
+    "OPERATOR_X_URL": "https://x.com/YpKwCSPTK7KxNUk",
+    // 問い合わせ先（フォームの URL など）。Google フォーム（docs.google.com/forms）なら、運営者情報のページに埋め込む。
+    // メールアドレスを直接載せる場合は mailto: で書く
+    "CONTACT_URL": "https://docs.google.com/forms/d/e/1FAIpQLSfJuivVzfoc9t5PFSmXATH5QF-ATAMFejvvxRVN4OHk8HR1-g/viewform"
   },
   "observability": { "enabled": true }
 }

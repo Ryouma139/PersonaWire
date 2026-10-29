@@ -86,10 +86,21 @@ function prose(env: Env, url: URL, personas: Persona[], title: string, body: str
 
 export async function aboutPage(env: Env, db: Api, url: URL): Promise<string> {
   const contact = safeUrl(env.CONTACT_URL) ?? (env.CONTACT_URL.startsWith('mailto:') ? env.CONTACT_URL : null);
+  // Google フォームなら、そのページに埋め込む（https://docs.google.com/forms/... だけ）
+  const form = contact?.startsWith('https://docs.google.com/forms/') ? new URL(contact) : null;
+  form?.searchParams.set('embedded', 'true');
+  const links = [
+    [safeUrl(env.OPERATOR_SITE_URL), '運営者のサイト'],
+    [safeUrl(env.OPERATOR_X_URL), 'X（旧Twitter）'],
+  ].filter((l): l is [string, string] => !!l[0]);
   return prose(env, url, await db.personas(), '運営者情報', `
     <h2>サイト名</h2><p>${esc(env.SITE_TITLE)}</p>
     <h2>運営者</h2><p>${env.OPERATOR_NAME ? esc(env.OPERATOR_NAME) : '準備中'}</p>
-    <h2>お問い合わせ</h2><p>${contact ? `<a href="${esc(contact)}">お問い合わせはこちら</a>` : '準備中'}</p>
+    ${links.length ? `<ul>${links.map(([href, label]) => `<li><a href="${esc(href)}" target="_blank" rel="noopener">${label}</a></li>`).join('')}</ul>` : ''}
+    <h2>お問い合わせ</h2>
+    ${form ? `<p>下のフォームからお送りください。表示されない場合は<a href="${esc(contact)}" target="_blank" rel="noopener">こちら</a>から。</p>
+    <iframe class="form" src="${esc(form.href)}" title="お問い合わせフォーム" loading="lazy">読み込んでいます…</iframe>`
+      : `<p>${contact ? `<a href="${esc(contact)}">お問い合わせはこちら</a>` : '準備中'}</p>`}
     <h2>このサイトについて</h2>
     <p>ニュースやSNSで話題の記事から、読者像（ペルソナ）ごとに役立つものを編集部が選び、ひとことを添えて紹介しています。記事の本文は掲載せず、要約の引用と出典元へのリンクを載せています。</p>`);
 }
