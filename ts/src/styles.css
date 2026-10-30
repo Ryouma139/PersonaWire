@@ -180,6 +180,8 @@ input[type=range] { accent-color: var(--accent); }
 input[type=checkbox] { accent-color: var(--accent); }
 .check-row { display: flex; gap: 14px; flex-wrap: wrap; }
 .check { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+.product-group { margin: 0 0 10px; }
+.product-group h4 { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--text-2); }
 
 .switch { position: relative; display: inline-block; width: 34px; height: 20px; flex-shrink: 0; }
 .switch input { opacity: 0; width: 0; height: 0; }

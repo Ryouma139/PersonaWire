@@ -4,7 +4,7 @@ import { db, dbMessage, type ArticleFields } from '../db';
 import { auth } from '../auth';
 import * as ui from '../ui';
 import { ASPS } from './products';
-import type { Issue, Item, ItemStatus, ItemType, NotionDbName, Persona, PersonaId, SourceKind, View } from '../types';
+import type { Issue, Item, ItemStatus, ItemType, NotionDbName, Persona, PersonaId, Product, SourceKind, View } from '../types';
 
 interface Filters {
   persona: PersonaId | '';
@@ -37,6 +37,18 @@ const NOTION_DBS: NotionDbName[] = ['articles', 'sns_posts', 'ideas'];
 const KINDS: SourceKind[] = ['NEWS', 'YOUTUBE', 'NOTE', 'X', 'THREADS', 'MEDIUM'];
 // 却下した記事を自動で削除するまでの日数（collector/wrangler.jsonc の PURGE_REJECTED_DAYS と合わせる）
 const PURGE_DAYS = 5;
+
+/** 関連商品の選択肢を、カテゴリごとにまとめる（カテゴリ名の順、カテゴリなしは最後に「その他」） */
+function byCategory(products: Product[]): [string, Product[]][] {
+  const groups = new Map<string, Product[]>();
+  for (const pr of products) {
+    const cat = pr.category.trim();
+    groups.set(cat, [...(groups.get(cat) ?? []), pr]);
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => (!a ? 1 : !b ? -1 : a.localeCompare(b, 'ja')))
+    .map(([cat, items]) => [cat || 'その他', items]);
+}
 const STATUS_KEYS = Object.keys(ui.STATUS) as ItemStatus[];
 
 function filtered(items: Item[]): Item[] {
@@ -126,8 +138,9 @@ function detail(it: Item | undefined): string {
       </label>
 
       <h3 class="label">関連商品（記事ページに PR として表示）</h3>
-      ${products.length ? `<div class="check-row">${products.map((pr) => `
-        <label class="check"><input type="checkbox" data-act="product" data-id="${it.id}" value="${pr.id}" ${it.productIds.includes(pr.id) ? 'checked' : ''}>${ui.esc(pr.name)}<small class="muted">${ASPS[pr.asp]}${pr.active ? '' : '・無効'}</small></label>`).join('')}</div>`
+      ${products.length ? byCategory(products).map(([cat, items]) => `
+        <div class="product-group"><h4>${ui.esc(cat)}</h4><div class="check-row">${items.map((pr) => `
+          <label class="check"><input type="checkbox" data-act="product" data-id="${it.id}" value="${pr.id}" ${it.productIds.includes(pr.id) ? 'checked' : ''}>${ui.esc(pr.name)}<small class="muted">${ASPS[pr.asp]}${pr.active ? '' : '・無効'}</small></label>`).join('')}</div></div>`).join('')
         : '<p class="muted small">商品がまだありません。<a href="#products" class="link">商品・リンク</a>で登録できます</p>'}
       <p class="muted small">記事ページには、ここで選んだ商品（有効で掲載期間中のもの）だけが出ます。選ばなければ商品の枠は出ません</p>
 
