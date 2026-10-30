@@ -34,17 +34,24 @@ export async function personaPage(c: Ctx, handle: string): Promise<string | null
     </div>`);
 }
 
+/** 記事ページの下に出す関連記事の数 */
+const RELATED = 4;
+
 export async function articlePage(c: Ctx, no: number): Promise<string | null> {
   const [personas, a, products, linked] = await Promise.all([c.db.personas(), c.db.article(no), c.db.products(), c.db.articleProductIds(no)]);
   if (!a) return null;
   const href = safeUrl(a.url);
   const handle = a.persona_handle ?? undefined;
+  // 関連記事: 同じペルソナの新しい記事から。足りなければ、ほかの新しい記事で埋める
+  const [samePersona, latest] = await Promise.all([handle ? c.db.articles(handle, RELATED + 1) : [], c.db.articles(undefined, RELATED * 2 + 1)]);
+  const related = [...new Map([...samePersona, ...latest].filter((x) => x.no !== a.no).map((x) => [x.no, x])).values()].slice(0, RELATED);
   // 記事に紐づけた商品（このサイトで掲載中のもの）だけを出す。紐づけが無ければ商品の枠は出さない
   const chosen = linked.map((id) => products.find((p) => p.id === id)).filter((p): p is Product => !!p);
   const cards = chosen.map((p) => productCard(c, p, 'article', { articleNo: a.no, personaHandle: handle }));
 
   return layout(c, { title: a.title, description: a.editor_comment, canonical: `${c.url.origin}/a/${a.no}`, personas, activeHandle: handle, ogType: 'article' }, `
     <div class="layout">
+      <div>
       <article class="full">
         <div class="meta">
           ${a.persona_name ? `<a class="persona" href="/p/${esc(a.persona_handle)}" style="--c:${esc(a.persona_color)}">${esc(a.persona_name)}</a>` : ''}
@@ -56,6 +63,8 @@ export async function articlePage(c: Ctx, no: number): Promise<string | null> {
         <p class="src">${esc(c.t.source)}: ${href ? `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(a.source_name)}</a>` : esc(a.source_name)}</p>
         ${href ? `<p><a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${esc(c.t.readOriginal)} ↗</a></p>` : ''}
       </article>
+      ${related.length ? `<section class="related"><h2 class="cat">${esc(c.t.relatedArticles)}</h2>${related.map((x) => articleCard(c, x)).join('')}</section>` : ''}
+      </div>
       <aside>${productBox(c, c.t.articlePicks, cards)}</aside>
     </div>`);
 }

@@ -24,6 +24,7 @@ export const en: Text = {
   personaPicks: (name) => `Picks for ${name}`,
 
   articlePicks: 'Related picks',
+  relatedArticles: 'More to read',
   editorNote: 'Editor’s note',
   source: 'Source',
   readOriginal: 'Read the original',

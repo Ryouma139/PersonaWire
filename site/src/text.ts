@@ -29,6 +29,8 @@ export interface Text {
   personaPicks: (name: string) => string;
 
   articlePicks: string;
+  /** 記事ページの下の、ほかの記事の見出し */
+  relatedArticles: string;
   editorNote: string;
   source: string;
   readOriginal: string;
@@ -89,6 +91,7 @@ export const ja: Text = {
   personaPicks: (name) => `${name} のおすすめ`,
 
   articlePicks: 'この記事に関連するおすすめ',
+  relatedArticles: 'あわせて読みたい',
   editorNote: '編集部のひとこと',
   source: '出典',
   readOriginal: '元の記事を読む',
