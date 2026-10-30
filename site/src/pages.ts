@@ -1,6 +1,6 @@
 /* 各ページ。データを読んで HTML を返す。文言は c.t（サイトの言語）、サイトの名前などは c.site から取る */
 import type { Ctx, Persona, Product } from './data';
-import { amazonStatement, articleCard, day, esc, layout, linkify, productBox, productCard, safeUrl } from './html';
+import { amazonStatement, articleCard, categoriesOf, day, esc, layout, linkify, productBox, productCard, safeUrl } from './html';
 
 /** そのペルソナ向けの商品（ペルソナ指定なしなら全商品）から最大 n 件。ペルソナ未指定の商品は誰にでも出す */
 function pickProducts(products: Product[], handle: string | undefined, n: number, exclude: string[] = []): Product[] {
@@ -67,8 +67,9 @@ export async function productsPage(c: Ctx): Promise<string> {
   const list = pickProducts(products, p?.handle, products.length);
   const groups = new Map<string, Product[]>();
   for (const pr of list) {
-    const cat = pr.category || c.t.otherCategory;
-    groups.set(cat, [...(groups.get(cat) ?? []), pr]);
+    // カテゴリが複数（カンマ区切り）の商品は、それぞれのカテゴリに出す
+    const cats = categoriesOf(pr.category);
+    for (const cat of cats.length ? cats : [c.t.otherCategory]) groups.set(cat, [...(groups.get(cat) ?? []), pr]);
   }
   const chip = (handle: string | undefined, label: string): string =>
     `<a href="/products${handle ? '?p=' + encodeURIComponent(handle) : ''}" class="${p?.handle === handle ? 'on' : ''}">${esc(label)}</a>`;

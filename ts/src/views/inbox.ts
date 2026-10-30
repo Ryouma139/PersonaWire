@@ -3,7 +3,7 @@ import { hasScores, isUsable, store } from '../store';
 import { db, dbMessage, type ArticleFields } from '../db';
 import { auth } from '../auth';
 import * as ui from '../ui';
-import { ASPS } from './products';
+import { ASPS, categoriesOf } from './products';
 import type { Issue, Item, ItemStatus, ItemType, NotionDbName, Persona, PersonaId, Product, SourceKind, View } from '../types';
 
 interface Filters {
@@ -38,12 +38,12 @@ const KINDS: SourceKind[] = ['NEWS', 'YOUTUBE', 'NOTE', 'X', 'THREADS', 'MEDIUM'
 // 却下した記事を自動で削除するまでの日数（collector/wrangler.jsonc の PURGE_REJECTED_DAYS と合わせる）
 const PURGE_DAYS = 5;
 
-/** 関連商品の選択肢を、カテゴリごとにまとめる（カテゴリ名の順、カテゴリなしは最後に「その他」） */
+/** 関連商品の選択肢を、カテゴリごとにまとめる（カテゴリ名の順、カテゴリなしは最後に「その他」）。複数のカテゴリの商品は、それぞれに出る */
 function byCategory(products: Product[]): [string, Product[]][] {
   const groups = new Map<string, Product[]>();
   for (const pr of products) {
-    const cat = pr.category.trim();
-    groups.set(cat, [...(groups.get(cat) ?? []), pr]);
+    const cats = categoriesOf(pr.category);
+    for (const cat of cats.length ? cats : ['']) groups.set(cat, [...(groups.get(cat) ?? []), pr]);
   }
   return [...groups.entries()]
     .sort(([a], [b]) => (!a ? 1 : !b ? -1 : a.localeCompare(b, 'ja')))

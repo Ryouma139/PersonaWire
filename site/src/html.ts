@@ -37,6 +37,9 @@ export const day = (c: Ctx, iso: string): string =>
 
 const yen = (n: number): string => '¥' + n.toLocaleString('ja-JP');
 
+/** 商品のカテゴリ。DB の category には「書籍, IT」のようにカンマ区切りで複数入る */
+export const categoriesOf = (category: string): string[] => [...new Set(category.split(/[,、]/).map((c) => c.trim()).filter(Boolean))];
+
 /** Amazon アソシエイトの規約で、サイトに載せることが求められている文 */
 export const amazonStatement = (c: Ctx): string => c.t.amazonStatement(esc(c.site.name));
 
@@ -68,7 +71,7 @@ export function productCard(c: Ctx, p: Product, placement: 'side' | 'article' | 
       <span class="pr">PR</span>
       ${img ? `<img src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
       <strong>${esc(p.name)}</strong>
-      <small>${esc(p.category)}${p.price ? ` · ${yen(p.price)}` : ''}</small>
+      <small>${esc(categoriesOf(p.category).join(' / '))}${p.price ? ` · ${yen(p.price)}` : ''}</small>
       <span class="go">${esc(c.t.aspButton[p.asp] ?? c.t.aspButton.other)} ↗</span>
     </a>`;
 }

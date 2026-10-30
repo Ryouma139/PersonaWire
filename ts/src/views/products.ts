@@ -27,9 +27,19 @@ export function isLive(pr: Product, now = Date.now()): boolean {
   return pr.active && (!pr.startsAt || Date.parse(pr.startsAt) <= now) && (!pr.endsAt || Date.parse(pr.endsAt) > now);
 }
 
+/** 商品のカテゴリ。DB の category には「書籍, IT」のようにカンマ区切りで複数入る */
+export const categoriesOf = (category: string): string[] => [...new Set(category.split(/[,、]/).map((c) => c.trim()).filter(Boolean))];
+
+/** 登録済みの商品のカテゴリ（重複なし、名前の順）。編集画面の選択肢に出す */
+function categories(): string[] {
+  return [...new Set(store.state.products.flatMap((pr) => categoriesOf(pr.category)))].sort((a, b) => a.localeCompare(b, 'ja'));
+}
+
 function edit(pr?: Product): void {
   const s = store.state;
   const asp = pr?.asp ?? 'amazon';
+  const cats = categories();
+  const mine = categoriesOf(pr?.category ?? '');
   ui.modal({
     title: pr ? '商品・リンクを編集' : '商品・リンクを追加',
     wide: true,
@@ -39,9 +49,12 @@ function edit(pr?: Product): void {
         <label class="field"><span>ASP</span>
           <select name="asp">${(Object.keys(ASPS) as Asp[]).map((k) => `<option value="${k}" ${k === asp ? 'selected' : ''}>${ASPS[k]}</option>`).join('')}</select>
         </label>
-        <label class="field"><span>カテゴリ</span><input name="category" value="${ui.esc(pr?.category ?? '')}" placeholder="書籍 / 家電 / サブスク など"></label>
         <label class="field field-xs"><span>価格（円）</span><input name="price" type="number" min="0" value="${pr?.price ?? 0}"></label>
       </div>
+      <fieldset class="field"><span>カテゴリ（複数選べます）</span>
+        ${cats.length ? `<div class="check-row">${cats.map((c, i) => `<label class="check"><input type="checkbox" name="cat_${i}" ${mine.includes(c) ? 'checked' : ''}> ${ui.esc(c)}</label>`).join('')}</div>` : ''}
+        <input name="newCategories" autocomplete="off" placeholder="新しいカテゴリ（複数はカンマ区切り。例：書籍, IT）">
+      </fieldset>
       <label class="field"><span>アフィリエイトリンク（ASP の管理画面で発行した URL をそのまま貼る）</span><input name="url" type="url" required value="${ui.esc(pr?.url ?? '')}" placeholder="https://"></label>
       <p class="muted small">Amazon のリンクは、規約によりメール配信には使えません。公開サイトでは、どの ASP のリンクも短縮・転送せずにそのまま載せます。</p>
       <label class="field"><span>画像の URL（任意。ASP が発行した画像のみ）</span><input name="imageUrl" type="url" value="${ui.esc(pr?.imageUrl ?? '')}" placeholder="https://"></label>
@@ -66,7 +79,7 @@ function edit(pr?: Product): void {
       const startsAt = fromDate(v.startsAt), endsAt = fromDate(v.endsAt, true);
       if (startsAt && endsAt && startsAt >= endsAt) { ui.toast('掲載終了日は、開始日より後にしてください', 'warn'); return false; }
       const data: ProductFields = {
-        name: v.name.trim(), asp: v.asp as Asp, category: v.category.trim(), price: Math.max(0, Number(v.price) || 0), url, imageUrl: image,
+        name: v.name.trim(), asp: v.asp as Asp, category: categoriesOf([...cats.filter((_, i) => v['cat_' + i]), v.newCategories].join(',')).join(', '), price: Math.max(0, Number(v.price) || 0), url, imageUrl: image,
         startsAt, endsAt, note: v.note, conversions: Math.max(0, Number(v.conversions) || 0), revenue: Math.max(0, Number(v.revenue) || 0),
         personaIds: s.personas.filter((p) => v['persona_' + p.id]).map((p) => p.id), active: pr?.active ?? true,
       };
