@@ -108,6 +108,8 @@ header.site { background:var(--surface); border-bottom:1px solid var(--border); 
 nav.personas { display:flex; gap:6px; overflow-x:auto; padding:0 0 12px; }
 nav.personas a { flex-shrink:0; text-decoration:none; font-size:13px; padding:5px 12px; border-radius:99px; border:1px solid var(--border); background:var(--bg); white-space:nowrap; }
 nav.personas a.on { background:var(--navy); color:#fff; border-color:var(--navy); }
+nav.months { padding:4px 0 0; }
+nav.months a { font-size:12px; padding:3px 10px; }
 .hero { padding:28px 0 8px; }
 .hero h1 { font-size:24px; line-height:1.4; margin:0 0 6px; }
 .hero p { color:var(--text-2); margin:0; }

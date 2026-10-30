@@ -89,8 +89,12 @@ export function api(env: Env) {
     /** このサイトの設定。無効か、無いときは undefined */
     site: async () => (await get<Site>(`public_sites?select=*&code=eq.${encodeURIComponent(env.SITE_CODE)}`))[0],
     personas: () => get<Persona>(`public_personas?select=code,name,handle,color,description&${site}&order=code`),
-    articles: (personaHandle?: string, limit = 30) =>
-      get<Article>(`public_articles?select=${ARTICLE_COLS}&${site}${personaHandle ? `&persona_handle=eq.${encodeURIComponent(personaHandle)}` : ''}&order=published_at.desc&limit=${limit}`),
+    /** 公開記事を新しい順に。range を渡すと、その期間（from 以上 to 未満）に公開したものだけ */
+    articles: (personaHandle?: string, limit = 30, range?: { from: string; to: string }) =>
+      get<Article>(`public_articles?select=${ARTICLE_COLS}&${site}${personaHandle ? `&persona_handle=eq.${encodeURIComponent(personaHandle)}` : ''}${range ? `&published_at=gte.${encodeURIComponent(range.from)}&published_at=lt.${encodeURIComponent(range.to)}` : ''}&order=published_at.desc&limit=${limit}`),
+    /** 公開日時だけ（月ごとの一覧を作るため） */
+    publishedDates: async (personaHandle?: string) =>
+      (await get<{ published_at: string }>(`public_articles?select=published_at&${site}${personaHandle ? `&persona_handle=eq.${encodeURIComponent(personaHandle)}` : ''}&order=published_at.desc&limit=5000`)).map((r) => r.published_at),
     article: async (no: number) => (await get<Article>(`public_articles?select=${ARTICLE_COLS}&${site}&no=eq.${no}`))[0],
     products: () => get<Product>(`public_products?select=id,name,category,asp,url,image_url,price,persona_handles&${site}&order=name`),
     /** 記事に手で紐づけた商品の ID */

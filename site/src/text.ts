@@ -24,6 +24,11 @@ export interface Text {
   heroLead: string;
   noArticles: string;
   noPersonaArticles: string;
+  /** 月ごとの絞り込みの「すべて」 */
+  allMonths: string;
+  /** 月の表示（例: 2026年10月） */
+  monthLabel: (year: number, month: number) => string;
+  noMonthArticles: string;
   homePicks: string;
   personaHero: (name: string) => string;
   personaPicks: (name: string) => string;
@@ -86,6 +91,9 @@ export const ja: Text = {
   heroLead: 'ニュースとSNSの話題から、読者像ごとに読むべき記事を選び、編集部のひとことを添えてお届けします。',
   noArticles: '公開中の記事はまだありません。',
   noPersonaArticles: 'このテーマの公開記事はまだありません。',
+  allMonths: 'すべての月',
+  monthLabel: (y, m) => `${y}年${m}月`,
+  noMonthArticles: 'この月の公開記事はありません。',
   homePicks: '編集部のおすすめ',
   personaHero: (name) => `${name} のためのニュース`,
   personaPicks: (name) => `${name} のおすすめ`,

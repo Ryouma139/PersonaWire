@@ -10,26 +10,68 @@ function pickProducts(products: Product[], handle: string | undefined, n: number
     .slice(0, n);
 }
 
+/*
+ * 月ごとの表示。?m=2026-10 で、その月（日本時間）に公開した記事だけを出す。
+ * 記事の一覧の上に、記事のある月を新しい順に並べる（例: すべての月 / 2026年10月 (12) / 2026年9月 (3)）
+ */
+const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
+/** 月を選んだときに出す記事の最大数 */
+const MONTH_LIMIT = 300;
+
+/** 日時を、日本時間の「YYYY-MM」にする */
+const monthOf = (iso: string): string => new Date(Date.parse(iso) + 9 * 3600e3).toISOString().slice(0, 7);
+
+/** ?m= の月。正しくなければ undefined */
+function selectedMonth(c: Ctx): { key: string; range: { from: string; to: string } } | undefined {
+  const m = MONTH.exec(c.url.searchParams.get('m') ?? '');
+  if (!m) return undefined;
+  const y = Number(m[1]), mo = Number(m[2]);
+  const next = mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`;
+  return { key: m[0], range: { from: `${m[0]}-01T00:00:00+09:00`, to: `${next}-01T00:00:00+09:00` } };
+}
+
+/** 記事のある月の切り替え。記事が 1 件も無ければ出さない */
+function monthNav(c: Ctx, path: string, dates: string[], current: string | undefined): string {
+  const counts = new Map<string, number>();
+  for (const d of dates) counts.set(monthOf(d), (counts.get(monthOf(d)) ?? 0) + 1);
+  if (!counts.size) return '';
+  const link = (key: string | undefined, label: string): string =>
+    `<a href="${path}${key ? '?m=' + key : ''}" class="${current === key ? 'on' : ''}">${esc(label)}</a>`;
+  return `<nav class="personas months">${link(undefined, c.t.allMonths)}${[...counts]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([key, n]) => link(key, `${c.t.monthLabel(Number(key.slice(0, 4)), Number(key.slice(5)))} (${n})`))
+    .join('')}</nav>`;
+}
+
 export async function home(c: Ctx): Promise<string> {
-  const [personas, articles, products] = await Promise.all([c.db.personas(), c.db.articles(), c.db.products()]);
+  const month = selectedMonth(c);
+  const [personas, articles, dates, products] = await Promise.all([
+    c.db.personas(), c.db.articles(undefined, month ? MONTH_LIMIT : 30, month?.range), c.db.publishedDates(), c.db.products(),
+  ]);
   const side = pickProducts(products, undefined, 3).map((p) => productCard(c, p, 'side'));
   return layout(c, { canonical: c.url.origin + '/', personas }, `
     <section class="hero"><h1>${esc(c.site.tagline)}</h1><p>${esc(c.t.heroLead)}</p></section>
+    ${monthNav(c, '/', dates, month?.key)}
     <div class="layout">
-      <div>${articles.map((a) => articleCard(c, a)).join('') || `<p class="empty">${esc(c.t.noArticles)}</p>`}</div>
+      <div>${articles.map((a) => articleCard(c, a)).join('') || `<p class="empty">${esc(month ? c.t.noMonthArticles : c.t.noArticles)}</p>`}</div>
       <aside>${productBox(c, c.t.homePicks, side)}</aside>
     </div>`);
 }
 
 export async function personaPage(c: Ctx, handle: string): Promise<string | null> {
-  const [personas, articles, products] = await Promise.all([c.db.personas(), c.db.articles(handle), c.db.products()]);
+  const month = selectedMonth(c);
+  const [personas, articles, dates, products] = await Promise.all([
+    c.db.personas(), c.db.articles(handle, month ? MONTH_LIMIT : 30, month?.range), c.db.publishedDates(handle), c.db.products(),
+  ]);
   const p = personas.find((x) => x.handle === handle);
   if (!p) return null;
+  const path = `/p/${encodeURIComponent(handle)}`;
   const side = pickProducts(products, handle, 3).map((pr) => productCard(c, pr, 'side', { personaHandle: handle }));
-  return layout(c, { title: p.name, description: p.description, canonical: `${c.url.origin}/p/${encodeURIComponent(handle)}`, personas, activeHandle: handle }, `
+  return layout(c, { title: p.name, description: p.description, canonical: c.url.origin + path, personas, activeHandle: handle }, `
     <section class="hero"><h1>${esc(c.t.personaHero(p.name))}</h1><p>${esc(p.description)}</p></section>
+    ${monthNav(c, path, dates, month?.key)}
     <div class="layout">
-      <div>${articles.map((a) => articleCard(c, a)).join('') || `<p class="empty">${esc(c.t.noPersonaArticles)}</p>`}</div>
+      <div>${articles.map((a) => articleCard(c, a)).join('') || `<p class="empty">${esc(month ? c.t.noMonthArticles : c.t.noPersonaArticles)}</p>`}</div>
       <aside>${productBox(c, c.t.personaPicks(p.name), side)}</aside>
     </div>`);
 }
