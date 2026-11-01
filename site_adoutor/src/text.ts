@@ -28,6 +28,7 @@ export const en: Text = {
 
   articlePicks: 'Related picks',
   relatedArticles: 'More to read',
+  newBadge: 'NEW',
   editorNote: 'Editor’s note',
   source: 'Source',
   readOriginal: 'Read the original',

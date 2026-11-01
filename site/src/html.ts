@@ -44,10 +44,15 @@ export const categoriesOf = (category: string): string[] => [...new Set(category
 export const amazonStatement = (c: Ctx): string => c.t.amazonStatement(esc(c.site.name));
 
 /** 記事の一覧の 1 件 */
+/** 公開からこの日数以内の記事は、カードを目立たせて NEW の印を付ける */
+const NEW_DAYS = 5;
+
 export function articleCard(c: Ctx, a: Article): string {
+  const isNew = Date.now() - Date.parse(a.published_at) < NEW_DAYS * 864e5;
   return `
-    <article class="card">
+    <article class="card${isNew ? ' new' : ''}">
       <div class="meta">
+        ${isNew ? `<span class="new-badge">${esc(c.t.newBadge)}</span>` : ''}
         ${a.persona_name ? `<a class="persona" href="/p/${esc(a.persona_handle)}" style="--c:${esc(a.persona_color)}">${esc(a.persona_name)}</a>` : ''}
         <span>${esc(c.t.kind[a.kind] ?? a.kind)} · ${esc(a.source_name)}</span>
         <time datetime="${esc(a.published_at)}">${day(c, a.published_at)}</time>
@@ -118,6 +123,8 @@ nav.months a { font-size:12px; padding:3px 10px; }
 .card h2 { font-size:17px; line-height:1.5; margin:4px 0 6px; }
 .card h2 a { text-decoration:none; }
 .card h2 a:hover { text-decoration:underline; }
+.card.new { border-color:var(--accent); box-shadow:inset 4px 0 0 var(--accent); }
+.new-badge { font-size:10px; font-weight:700; letter-spacing:.04em; color:#fff; background:var(--accent); border-radius:4px; padding:1px 6px; }
 .meta { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12px; color:var(--text-2); align-items:center; }
 .persona { --c:var(--accent); color:var(--c); font-weight:700; text-decoration:none; }
 .comment { margin:0; white-space:pre-line; overflow-wrap:anywhere; }

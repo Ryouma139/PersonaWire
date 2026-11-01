@@ -36,6 +36,8 @@ export interface Text {
   articlePicks: string;
   /** 記事ページの下の、ほかの記事の見出し */
   relatedArticles: string;
+  /** 公開から NEW_DAYS 日以内の記事に付ける印 */
+  newBadge: string;
   editorNote: string;
   source: string;
   readOriginal: string;
@@ -100,6 +102,7 @@ export const ja: Text = {
 
   articlePicks: 'この記事に関連するおすすめ',
   relatedArticles: 'あわせて読みたい',
+  newBadge: 'NEW',
   editorNote: '編集部のひとこと',
   source: '出典',
   readOriginal: '元の記事を読む',
