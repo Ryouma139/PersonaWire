@@ -1,6 +1,7 @@
 /* ダッシュボード */
 import { store } from '../store';
 import * as ui from '../ui';
+import { revenueTotal, thisMonth } from './revenue';
 import type { DailyStat, View } from '../types';
 
 function chart(daily: DailyStat[]): string {
@@ -34,7 +35,9 @@ function render(root: HTMLElement): void {
   const candidates = pending.filter((i) => i.verdict === 'adopt');
   const activePlans = s.deliveries.filter((d) => d.status === 'active');
   const subs = activePlans.reduce((a, d) => a + d.subscribers, 0);
-  const mrr = activePlans.reduce((a, d) => a + d.subscribers * d.price, 0);
+  // 売上は「売上」の画面で手入力した金額（有料配信の見本の数字は使わない）
+  const sales = revenueTotal(thisMonth());
+  const salesAll = revenueTotal();
   const clicks = s.products.reduce((a, p) => a + p.clicks30, 0);
 
   // 直近7日（今日を含む）を、記事の収集日ごとに数える
@@ -61,7 +64,7 @@ function render(root: HTMLElement): void {
       <div class="kpi"><span>24時間の収集</span><strong>${ui.num(recent.length)}</strong><small>ニュース ${recent.filter((x) => x.type === 'news').length} / SNS ${recent.filter((x) => x.type === 'sns').length}</small></div>
       <div class="kpi"><span>AI採用候補</span><strong>${candidates.length}</strong><small>要確認 ${pending.length} 件中</small></div>
       <div class="kpi"><span>有料購読者</span><strong>${ui.num(subs)}</strong><small>配信中 ${activePlans.length} プラン</small></div>
-      <div class="kpi"><span>月間売上 (MRR)</span><strong>${ui.yen(mrr)}</strong><small>有料配信の合計</small></div>
+      <div class="kpi"><a href="#revenue" class="kpi-link"><span>今月の売上</span><strong>${ui.yen(sales.total)}</strong><small>購読 ${ui.yen(sales.subscription)} / アフィリ ${ui.yen(sales.affiliate)}<br>累計 ${ui.yen(salesAll.total)}</small></a></div>
       <div class="kpi"><span>商品クリック（30日）</span><strong>${ui.num(clicks)}</strong><small>CV ${ui.num(s.products.reduce((a, p) => a + p.conversions, 0))}</small></div>
     </section>
 

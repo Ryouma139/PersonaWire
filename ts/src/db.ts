@@ -1,6 +1,6 @@
 /* Persona Wire — Supabase の表との読み書き（ペルソナ・記事・スコア・商品・操作ログ） */
 import { supabase } from './auth';
-import type { Activity, Asp, ClickStats, CollectRun, Item, ItemStatus, NotionDbName, Persona, PersonaId, Product, SourceKind, Verdict } from './types';
+import type { Activity, Asp, ClickStats, CollectRun, Revenue, RevenueSource, Item, ItemStatus, NotionDbName, Persona, PersonaId, Product, SourceKind, Verdict } from './types';
 
 interface PersonaRow {
   id: string;
@@ -60,6 +60,12 @@ interface ClickRow {
   product_id: string;
   clicks_30d: number;
   clicks_total: number;
+}
+
+interface RevenueRow {
+  month: string;
+  source: RevenueSource;
+  amount: number;
 }
 
 interface ArticleClickRow {
@@ -185,18 +191,19 @@ export function dbMessage(e: unknown): string {
 }
 
 export const db = {
-  async loadAll(): Promise<{ personas: Persona[]; items: Item[]; products: Product[]; clicks: ClickStats; activity: Activity[]; runs: CollectRun[] }> {
-    const [p, a, pr, c, ac, dc, l, r] = await Promise.all([
+  async loadAll(): Promise<{ personas: Persona[]; items: Item[]; products: Product[]; clicks: ClickStats; revenues: Revenue[]; activity: Activity[]; runs: CollectRun[] }> {
+    const [p, a, pr, c, ac, dc, rv, l, r] = await Promise.all([
       supabase.from('personas').select('*').order('code'),
       supabase.from('articles').select('*, article_persona_scores(persona_id, relevance_score, reasons), article_products(product_id)').order('collected_at', { ascending: false }),
       supabase.from('products').select('*, product_personas(persona_id)').order('created_at', { ascending: false }),
       supabase.from('product_click_counts').select('*'),
       supabase.from('article_click_counts').select('*'),
       supabase.from('daily_click_counts').select('day, clicks').order('day'),
+      supabase.from('revenues').select('month, source, amount').order('month', { ascending: false }),
       supabase.from('activity_logs').select('created_at, action, detail, actor, users(name)').order('created_at', { ascending: false }).limit(30),
       supabase.from('collect_runs').select('started_at, finished_at, trigger, ok, inserted, skipped, purged, message').order('started_at', { ascending: false }).limit(10),
     ]);
-    for (const res of [p, a, pr, c, ac, dc, l, r]) if (res.error) throw res.error;
+    for (const res of [p, a, pr, c, ac, dc, rv, l, r]) if (res.error) throw res.error;
     const clicks = new Map((c.data as ClickRow[]).map((x) => [x.product_id, x]));
     return {
       personas: (p.data as PersonaRow[]).map(toPersona),
@@ -206,9 +213,25 @@ export const db = {
         articles: (ac.data as ArticleClickRow[]).map((x) => ({ articleId: x.article_id, clicks30: x.clicks_30d, clicksTotal: x.clicks_total })),
         daily: dc.data as Array<{ day: string; clicks: number }>,
       },
+      revenues: (rv.data as RevenueRow[]).map((x) => ({ month: x.month.slice(0, 7), source: x.source, amount: x.amount })),
       activity: (l.data as unknown as LogRow[]).map(toActivity),
       runs: (r.data as RunRow[]).map(toRun),
     };
+  },
+
+  /** ある月の売上を、種類ごとにまとめて保存する（あれば上書き） */
+  async saveRevenues(month: string, amounts: Partial<Record<RevenueSource, number>>): Promise<void> {
+    const rows = Object.entries(amounts).map(([source, amount]) => ({ month: `${month}-01`, source, amount }));
+    const { data, error } = await supabase.from('revenues').upsert(rows, { onConflict: 'month,source' }).select('month');
+    if (error) throw error;
+    changed(data);
+  },
+
+  /** ある月の売上をすべて消す */
+  async deleteRevenues(month: string): Promise<void> {
+    const { data, error } = await supabase.from('revenues').delete().eq('month', `${month}-01`).select('month');
+    if (error) throw error;
+    changed(data);
   },
 
   /** 商品を追加する。追加した商品の id を返す */

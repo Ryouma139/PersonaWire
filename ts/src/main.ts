@@ -12,8 +12,9 @@ import { personas } from './views/personas';
 import { products } from './views/products';
 import { notion } from './views/notion';
 import { site } from './views/site';
+import { revenue } from './views/revenue';
 
-const views = { dashboard, inbox, delivery, personas, products, notion, site } satisfies Record<string, View>;
+const views = { dashboard, inbox, delivery, revenue, personas, products, notion, site } satisfies Record<string, View>;
 type RouteName = keyof typeof views;
 
 const root = ui.byId('view');

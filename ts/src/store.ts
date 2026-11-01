@@ -35,7 +35,7 @@ function judgeWith(item: Pick<Item, 'scores'>, personas: Persona[]): { verdict: 
 const SITE: SiteConfig = { title: 'Persona Wire', url: (import.meta.env.VITE_SITE_URL ?? '').replace(/\/$/, '') };
 
 /** 有料配信・Notion のサンプル。ペルソナは p1〜p5 で書き、DB を読んだあとにコード（P01〜）で付け替える */
-type LocalState = Omit<AppState, 'personas' | 'items' | 'products' | 'clicks' | 'activity' | 'runs' | 'site'>;
+type LocalState = Omit<AppState, 'personas' | 'items' | 'products' | 'clicks' | 'revenues' | 'activity' | 'runs' | 'site'>;
 
 const NO_CLICKS: ClickStats = { articles: [], daily: [] };
 
@@ -97,11 +97,11 @@ function loadLocal(): LocalState {
 }
 
 // DB の分は reload() で読み込むまで空（以前ブラウザに保存した商品のサンプルは、ここで上書きして使わない）
-let state: AppState = { ...loadLocal(), personas: [], items: [], products: [], clicks: NO_CLICKS, activity: [], runs: [], site: SITE };
+let state: AppState = { ...loadLocal(), personas: [], items: [], products: [], clicks: NO_CLICKS, revenues: [], activity: [], runs: [], site: SITE };
 state.notion.syncing = false;
 
 function save(): void {
-  const { personas: _p, items: _i, products: _pr, clicks: _c, activity: _a, runs: _r, site: _s, ...local } = state;
+  const { personas: _p, items: _i, products: _pr, clicks: _c, revenues: _rv, activity: _a, runs: _r, site: _s, ...local } = state;
   try {
     localStorage.setItem(KEY, JSON.stringify(local));
   } catch {
@@ -137,10 +137,11 @@ export const store = {
   },
   /** DB からペルソナ・記事・操作ログを読み直す */
   async reload(): Promise<void> {
-    const { personas, items, products, clicks, activity, runs } = await db.loadAll();
+    const { personas, items, products, clicks, revenues, activity, runs } = await db.loadAll();
     state.personas = personas;
     state.products = products;
     state.clicks = clicks;
+    state.revenues = revenues;
     // AI 判定が空でもスコアがある記事（Table Editor で入れた記事など）は、スコアから判定して表示する（DB には書かない）。
     // スコアが無い記事（バッチで取り込んだ直後）は、判定待ちのまま
     state.items = items.map((it) => {
@@ -171,7 +172,7 @@ export const store = {
   },
   /** 開発用: 有料配信・Notion のサンプルを初期状態に戻す（DB の分は読み直す） */
   async reset(): Promise<void> {
-    state = { ...seedLocal(), personas: state.personas, items: state.items, products: state.products, clicks: state.clicks, activity: state.activity, runs: state.runs, site: SITE };
+    state = { ...seedLocal(), personas: state.personas, items: state.items, products: state.products, clicks: state.clicks, revenues: state.revenues, activity: state.activity, runs: state.runs, site: SITE };
     await store.reload();
   },
   /** 操作ログを残す。画面にはすぐ出し、DB には後ろで書き込む */

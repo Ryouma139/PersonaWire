@@ -177,6 +177,17 @@ export interface SiteConfig {
   url: string;
 }
 
+/** 売上の種類。購読（note メンバーシップなど）と、ASP ごとのアフィリエイト報酬 */
+export type RevenueSource = 'subscription' | Asp;
+
+/** 手入力の売上。1 件 = ある月の、ある種類の金額（円） */
+export interface Revenue {
+  /** YYYY-MM */
+  month: string;
+  source: RevenueSource;
+  amount: number;
+}
+
 /** クリックの集計（公開サイトで記録したもの。同じ人・同じ商品は 1 日 1 回） */
 export interface ClickStats {
   /** 記事ごと（記事ページの商品枠で押されたもの） */
@@ -192,6 +203,7 @@ export interface AppState {
   issues: Issue[];
   products: Product[];
   clicks: ClickStats;
+  revenues: Revenue[];
   notion: NotionState;
   activity: Activity[];
   runs: CollectRun[];
