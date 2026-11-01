@@ -3,7 +3,7 @@ import { store } from '../store';
 import { db, type ProductFields } from '../db';
 import { auth } from '../auth';
 import * as ui from '../ui';
-import type { Asp, PersonaId, Product, View } from '../types';
+import type { Asp, ClickStats, PersonaId, Product, View } from '../types';
 
 let personaFilter: PersonaId = '';
 
@@ -93,6 +93,55 @@ function edit(pr?: Product): void {
   });
 }
 
+const CLICK_DAYS = 30;
+
+/** 日本時間の YYYY-MM-DD（k 日前） */
+const jstDay = (k: number): string => new Date(Date.now() + 9 * 3600e3 - k * 864e5).toISOString().slice(0, 10);
+
+/** 日別のクリック数（直近 30 日。クリックが無い日も 0 で並べる） */
+function clickChart(daily: ClickStats['daily']): string {
+  const byDay = new Map(daily.map((d) => [d.day, d.clicks]));
+  const days = Array.from({ length: CLICK_DAYS }, (_, i) => jstDay(CLICK_DAYS - 1 - i)).map((day) => ({ day, n: byDay.get(day) ?? 0 }));
+  const W = 640, H = 180, P = 24;
+  const max = Math.max(...days.map((d) => d.n), 5);
+  const bw = (W - P * 2) / days.length;
+  const y = (v: number): number => H - P - (v / max) * (H - P * 2);
+  const label = (day: string): string => `${Number(day.slice(5, 7))}/${Number(day.slice(8))}`;
+  return `
+    <svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="直近${CLICK_DAYS}日のクリック数">
+      <line x1="${P}" x2="${W - P}" y1="${H - P}" y2="${H - P}" class="grid"/>
+      ${days.map((d, i) => {
+        const x = P + i * bw + bw * 0.15, w = bw * 0.7;
+        return `<rect x="${x}" y="${y(d.n)}" width="${w}" height="${H - P - y(d.n)}" class="bar-news"><title>${label(d.day)} ${d.n} クリック</title></rect>
+          ${i % 5 === 4 || i === days.length - 1 ? `<text x="${x + w / 2}" y="${H - 6}" class="axis">${label(d.day)}</text>` : ''}`;
+      }).join('')}
+    </svg>`;
+}
+
+/** 記事別のクリック数（多い順に 10 件） */
+function articleRanking(articles: ClickStats['articles']): string {
+  const site = store.state.site.url;
+  const rows = articles
+    .flatMap((a) => {
+      const it = store.item(a.articleId);
+      return it ? [{ ...a, it }] : [];
+    })
+    .sort((a, b) => b.clicks30 - a.clicks30 || b.clicksTotal - a.clicksTotal)
+    .slice(0, 10);
+  if (!rows.length) return '<p class="empty">記事ページの商品枠からのクリックは、まだありません</p>';
+  return `
+    <table class="table">
+      <thead><tr><th>記事</th><th class="num">30日</th><th class="num">累計</th></tr></thead>
+      <tbody>${rows.map(({ it, clicks30, clicksTotal }) => {
+        const href = it.status === 'published' && site ? `${site}/a/${it.no}` : null;
+        return `<tr>
+          <td>${href ? `<a class="link" href="${ui.esc(href)}" target="_blank" rel="noopener">${ui.esc(it.title)}</a>` : ui.esc(it.title)}${it.status === 'published' ? '' : ' <small class="muted">（非公開）</small>'}</td>
+          <td class="num">${ui.num(clicks30)}</td><td class="num">${ui.num(clicksTotal)}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+}
+
 function render(root: HTMLElement): void {
   const s = store.state;
   const admin = auth.isAdmin();
@@ -111,6 +160,17 @@ function render(root: HTMLElement): void {
       <div class="kpi"><span>成果</span><strong>${ui.num(cvs)}</strong><small>累計クリックの ${rate(cvs, clicksAll)}%</small></div>
       <div class="kpi"><span>報酬</span><strong>${ui.yen(revenue)}</strong><small>手入力の累計</small></div>
     </section>
+
+    <div class="grid-2">
+      <section class="card">
+        <div class="card-head"><h2>日別のクリック（直近${CLICK_DAYS}日）</h2></div>
+        ${clickChart(s.clicks.daily)}
+      </section>
+      <section class="card table-card">
+        <div class="card-head"><h2>記事別のクリック</h2></div>
+        ${articleRanking(s.clicks.articles)}
+      </section>
+    </div>
 
     <div class="tabs">
       <button class="tab ${!personaFilter ? 'active' : ''}" data-act="filter" data-id="">すべて</button>
@@ -143,7 +203,8 @@ function render(root: HTMLElement): void {
         </tbody>
       </table>
     </section>
-    <p class="muted small">公開サイトでは、商品の枠に「PR」と表示し、リンクに rel="sponsored" を付けています。クリックは個人を特定しない形で記録しています。</p>`;
+    <p class="muted small">公開サイトでは、商品の枠に「PR」と表示し、リンクに rel="sponsored" を付けています。クリックは個人を特定しない形で記録しています。</p>
+    <p class="muted small">クリック数は、同じ人・同じ商品なら 1 日 1 回だけ数えます（日本時間）。ロボットのクリックは数えません。確認のために自分で押すときは、先にそのブラウザで公開サイトの <code>/no-count</code> を開いてください${s.site.url ? `（<a class="link" href="${ui.esc(s.site.url)}/no-count" target="_blank" rel="noopener">Persona Wire</a>）` : ''}。サイトごとに 1 回ずつ必要です。日別・商品別・記事別のどれも、全サイトの合計です。</p>`;
 
   root.onclick = (e) => {
     const el = ui.actionTarget(e);

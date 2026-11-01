@@ -9,7 +9,9 @@
  *   POST /c         商品リンクのクリックを数える（ページの中のスクリプトから）
  *   /go/<商品ID>    クリックを数えてからアフィリエイトリンクへ転送する。メールなどスクリプトが動かない場所用。
  *                   Amazon は規約上、転送やメールでの利用ができないので受け付けない
+ *   /no-count       このブラウザのクリックを数えない（運営者の確認用。?off で元に戻す）
  *   /robots.txt /sitemap.xml
+ * クリックは、同じ人・同じ商品なら 1 日 1 回だけ数える。ロボットと /no-count を開いたブラウザは数えない（visitorOf()）
  * ロゴなどの画像は、各サイトの public/ から配信される（Worker より先に返る）
  * サイトの名前・言語・運営者情報は DB の sites（SITE_CODE の行）から読み、記事・商品もそのサイトの分だけを出す
  */
@@ -24,7 +26,39 @@ const HANDLE = /^[A-Za-z0-9_-]{1,64}$/;
 const html = (body: string, status = 200): Response =>
   new Response(body, { status, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': status === 200 ? 'public, max-age=300' : 'no-store' } });
 
-async function clickBeacon(request: Request, db: Api, url: URL): Promise<Response> {
+// ロボット（検索エンジン、リンクの下見、メールの安全確認、スクリプト）。押したのが人ではないので数えない
+const BOT_UA = /bot|crawl|spider|slurp|preview|scan|monitor|headless|lighthouse|facebookexternalhit|python|curl|wget|java\/|go-http|axios|node-fetch|okhttp|httpclient/i;
+
+/** 自分たちのクリックを数えない印（/no-count で付ける）。このサイトだけの Cookie */
+const NO_COUNT_COOKIE = 'pw_nocount';
+
+/**
+ * クリックした人を見分ける値。IP アドレス・ブラウザの種類・日付（日本時間）・合言葉のハッシュ。
+ * 元の IP アドレスには戻せず、日が変わると別の値になる。数えないクリック（ロボット・自分たち・合言葉が無い）は null
+ */
+async function visitorOf(request: Request, env: Env): Promise<string | null> {
+  const ua = request.headers.get('User-Agent') ?? '';
+  if (!env.CLICK_TOKEN || !ua || BOT_UA.test(ua)) return null;
+  if ((request.headers.get('Cookie') ?? '').split(/;\s*/).includes(`${NO_COUNT_COOKIE}=1`)) return null;
+  const day = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  const ip = request.headers.get('CF-Connecting-IP') ?? '';
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${day}|${ip}|${ua}|${env.CLICK_TOKEN}`));
+  return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** /no-count: このブラウザのクリックを数えない（?off で元に戻す）。運営者が確認用に使う */
+function noCount(url: URL): Response {
+  const off = url.searchParams.has('off');
+  const cookie = off ? `${NO_COUNT_COOKIE}=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Lax` : `${NO_COUNT_COOKIE}=1; Max-Age=31536000; Path=/; Secure; HttpOnly; SameSite=Lax`;
+  const body = off
+    ? '<p>このブラウザのクリックを、また数えるようにしました。</p><p><a href="/no-count">数えないようにする</a></p>'
+    : '<p>このブラウザで、このサイトの商品リンクを押しても、クリック数に入れないようにしました（1 年間）。</p><p><a href="/no-count?off">元に戻す</a> · <a href="/">トップへ</a></p>';
+  return new Response(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>クリックの計測</title>${body}`, {
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Set-Cookie': cookie },
+  });
+}
+
+async function clickBeacon(request: Request, env: Env, db: Api, url: URL): Promise<Response> {
   // 他のサイトから数を水増しされないよう、このサイトのページからの送信だけ受け付ける
   const origin = request.headers.get('Origin');
   if (origin && origin !== url.origin) return new Response(null, { status: 403 });
@@ -33,16 +67,18 @@ async function clickBeacon(request: Request, db: Api, url: URL): Promise<Respons
   const placement = b.s === 'side' || b.s === 'article' ? b.s : 'other';
   const articleNo = typeof b.a === 'number' && Number.isInteger(b.a) && b.a > 0 ? b.a : null;
   const handle = typeof b.h === 'string' && HANDLE.test(b.h) ? b.h : null;
-  await db.recordClick(b.p, placement, articleNo, handle);
+  await db.recordClick(b.p, placement, articleNo, handle, await visitorOf(request, env));
   return new Response(null, { status: 204 });
 }
 
-async function go(db: Api, url: URL, id: string): Promise<Response | null> {
+async function go(request: Request, env: Env, db: Api, url: URL, id: string): Promise<Response | null> {
   if (!UUID.test(id)) return null;
   const product = (await db.products()).find((p) => p.id === id);
   if (!product || product.asp === 'amazon') return null;
   const placement = url.searchParams.get('s') === 'email' ? 'email' : 'other';
-  const dest = await db.recordClick(id, placement, null, null);
+  // HEAD はリンクの下見（メールの安全確認など）なので数えない
+  const visitor = request.method === 'GET' ? await visitorOf(request, env) : null;
+  const dest = await db.recordClick(id, placement, null, null, visitor);
   if (!dest) return null;
   return new Response(null, { status: 302, headers: { Location: dest, 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } });
 }
@@ -119,13 +155,14 @@ async function handle(opts: SiteOptions, request: Request, env: Env): Promise<Re
   const path = url.pathname.replace(/\/+$/, '') || '/';
   const t = opts.text;
   try {
-    if (path === '/c') return request.method === 'POST' ? await clickBeacon(request, db, url) : new Response(null, { status: 405 });
+    if (path === '/c') return request.method === 'POST' ? await clickBeacon(request, env, db, url) : new Response(null, { status: 405 });
     if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method Not Allowed', { status: 405 });
-    if (path === '/robots.txt') return new Response(`User-agent: *\nDisallow: /go/\nSitemap: ${url.origin}/sitemap.xml\n`, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    if (path === '/robots.txt') return new Response(`User-agent: *\nDisallow: /go/\nDisallow: /no-count\nSitemap: ${url.origin}/sitemap.xml\n`, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
     if (path === '/sitemap.xml') return await sitemap(db, url);
+    if (path === '/no-count') return noCount(url);
     let m = /^\/go\/([^/]+)$/.exec(path);
     if (m) {
-      const res = await go(db, url, m[1]);
+      const res = await go(request, env, db, url, m[1]);
       if (res) return res;
     }
 

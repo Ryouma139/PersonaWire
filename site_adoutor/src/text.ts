@@ -56,7 +56,7 @@ export const en: Text = {
   aboutBody: 'We pick useful stories and videos about traveling in Japan — outdoors, food and culture — and add a short note from our editors. We don’t republish full articles; we quote a short summary and link to the original source.',
   privacyBody: () => `
     <h2>What we record</h2>
-    <p>When a recommended link is clicked, we record which item was clicked, on which page and section, and when. We use this only to improve our recommendations. We do not record IP addresses, cookies, device information or anything else that identifies you.</p>
+    <p>When a recommended link is clicked, we record which item was clicked, on which page and section, and when. We use this only to improve our recommendations. So that repeat clicks are not counted twice, we also store a one-way value derived from your IP address and browser type, which changes every day and cannot be turned back into your IP address. We do not record IP addresses themselves, cookies, device information or anything else that identifies you.</p>
     <h2>Server logs</h2>
     <p>This site is served by Cloudflare. Cloudflare may keep access logs for a short time for troubleshooting and security.</p>
     <h2>Affiliate partners</h2>

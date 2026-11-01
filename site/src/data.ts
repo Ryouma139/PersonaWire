@@ -8,6 +8,8 @@ export interface Env {
   SUPABASE_PUBLISHABLE_KEY: string;
   /** sites.code。サイトの名前・言語・運営者情報は、DB の sites から読む */
   SITE_CODE: string;
+  /** クリックを数えるための合言葉（Secret。DB の app_secrets の click_token と同じ値）。無いとクリックは数えない */
+  CLICK_TOKEN?: string;
 }
 
 /** サイトの設定（public_sites） */
@@ -101,12 +103,16 @@ export function api(env: Env) {
     articleProductIds: async (no: number) =>
       (await get<{ product_id: string }>(`public_article_products?select=product_id&${site}&article_no=eq.${no}`)).map((r) => r.product_id),
 
-    /** クリックを記録し、このサイト用の転送先を返す（このサイトで掲載中でない商品なら null） */
-    async recordClick(product: string, placement: string, articleNo: number | null, personaHandle: string | null): Promise<string | null> {
+    /**
+     * クリックを記録し、このサイト用の転送先を返す（このサイトで掲載中でない商品なら null）。
+     * visitor が null（数えないクリック）なら、記録せずに転送先だけを返す
+     */
+    async recordClick(product: string, placement: string, articleNo: number | null, personaHandle: string | null, visitor: string | null): Promise<string | null> {
+      const counted = visitor && env.CLICK_TOKEN ? { visitor, token: env.CLICK_TOKEN } : {};
       const res = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/record_click`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product, placement, article_no: articleNo, persona_handle: personaHandle, site: env.SITE_CODE }),
+        body: JSON.stringify({ product, placement, article_no: articleNo, persona_handle: personaHandle, site: env.SITE_CODE, ...counted }),
       });
       if (!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`);
       return (await res.json()) as string | null;

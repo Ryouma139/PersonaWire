@@ -177,6 +177,24 @@ export function confirmDialog(title: string, message: string, onOk: () => void, 
   modal({ title, body: `<p>${esc(message)}</p>`, submitLabel: label, danger: true, onSubmit: () => onOk() });
 }
 
+/** 書式付き（HTML）でコピーする。貼り付け先が書式を受け付けなければ、文字だけ（text）が貼られる */
+export async function copyRich(html: string, text: string, okMessage: string): Promise<void> {
+  try {
+    await navigator.clipboard.write([new ClipboardItem({
+      'text/html': new Blob([html], { type: 'text/html' }),
+      'text/plain': new Blob([text], { type: 'text/plain' }),
+    })]);
+    toast(okMessage);
+  } catch {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(okMessage);
+    } catch {
+      toast('コピーできませんでした', 'warn');
+    }
+  }
+}
+
 export async function copy(text: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);

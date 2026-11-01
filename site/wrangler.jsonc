@@ -14,5 +14,6 @@
     // DB の sites.code。サイト名・キャッチコピー・運営者情報・問い合わせ先は、DB の sites の行を書き換えて変える
     "SITE_CODE": "persona-wire"
   },
+  // Secret（ここには書かない）: CLICK_TOKEN … クリックを数えるための合言葉（README の「クリックの合言葉」）
   "observability": { "enabled": true }
 }

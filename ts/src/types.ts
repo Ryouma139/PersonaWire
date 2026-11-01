@@ -177,12 +177,21 @@ export interface SiteConfig {
   url: string;
 }
 
+/** クリックの集計（公開サイトで記録したもの。同じ人・同じ商品は 1 日 1 回） */
+export interface ClickStats {
+  /** 記事ごと（記事ページの商品枠で押されたもの） */
+  articles: Array<{ articleId: string; clicks30: number; clicksTotal: number }>;
+  /** 日ごと（日本時間の YYYY-MM-DD、直近 90 日。クリックが無い日は入らない） */
+  daily: Array<{ day: string; clicks: number }>;
+}
+
 export interface AppState {
   personas: Persona[];
   items: Item[];
   deliveries: Delivery[];
   issues: Issue[];
   products: Product[];
+  clicks: ClickStats;
   notion: NotionState;
   activity: Activity[];
   runs: CollectRun[];

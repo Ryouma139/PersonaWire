@@ -1,7 +1,8 @@
 /* 有料配信 */
 import { isUsable, store, uid } from '../store';
 import * as ui from '../ui';
-import type { Delivery, Issue, IssueStatus, View } from '../types';
+import { mailLink } from './products';
+import type { Delivery, Issue, IssueStatus, Item, View } from '../types';
 
 let planId: string | null = null;
 let issueId: string | null = null;
@@ -30,7 +31,8 @@ function planForm(d?: Delivery): string {
     <div class="field-row">
       <label class="field"><span>チャネル</span><select name="channel">${CHANNELS.map((c) => `<option ${c === d?.channel ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
       <label class="field"><span>配信頻度</span><input name="cadence" value="${ui.esc(d?.cadence ?? '毎週月曜 7:00')}"></label>
-    </div>`;
+    </div>
+    <label class="field"><span>購読者数（note の管理画面を見て手で入れる）</span><input name="subscribers" type="number" min="0" value="${d?.subscribers ?? 0}"></label>`;
 }
 
 function editPlan(d?: Delivery): void {
@@ -39,11 +41,11 @@ function editPlan(d?: Delivery): void {
     body: planForm(d),
     onSubmit: (v) => {
       if (!v.name.trim()) { ui.toast('プラン名を入力してください', 'warn'); return false; }
-      const fields = { name: v.name, persona: v.persona, price: Number(v.price), channel: v.channel, cadence: v.cadence };
+      const fields = { name: v.name, persona: v.persona, price: Number(v.price), channel: v.channel, cadence: v.cadence, subscribers: Number(v.subscribers) || 0 };
       store.update((s) => {
         if (d) Object.assign(d, fields);
         else {
-          const nd: Delivery = { id: uid('d'), ...fields, subscribers: 0, openRate: 0, status: 'active' };
+          const nd: Delivery = { id: uid('d'), ...fields, openRate: 0, status: 'active' };
           s.deliveries.push(nd);
           planId = nd.id;
           store.log(`有料プラン「${v.name}」を作成`);
@@ -66,10 +68,46 @@ function newIssue(d: Delivery): void {
   ui.toast(`#${x.no} を作成しました（採用済み記事 ${candidates.length} 本を自動選定）`);
 }
 
+const issueItems = (x: Issue): Item[] => x.itemIds.map((id) => store.item(id)).filter((it) => it !== undefined);
+
+/** PR 枠の商品。対象ペルソナの有効な商品のうち、計測リンクを使える先頭の 1 件（Amazon は規約上、配信には載せない） */
+function prProduct(d: Delivery): { name: string; link: string } | null {
+  for (const pr of store.state.products) {
+    const link = pr.active && pr.personaIds.includes(d.persona) ? mailLink(pr) : null;
+    if (link) return { name: pr.name, link };
+  }
+  return null;
+}
+
+/** 記事のリンク先。公開中なら公開サイトの記事ページ（サイトへ呼び込む）、それ以外は元の記事 */
+function itemLink(it: Item): string {
+  const site = store.state.site.url;
+  return (it.status === 'published' && site ? `${site}/a/${it.no}` : ui.safeUrl(it.url)) ?? '';
+}
+
+/** note に貼り付ける本文。件名は note のタイトル欄に入れるので、本文には入れない */
+function noteBody(x: Issue, d: Delivery): { html: string; text: string } {
+  const html: string[] = [], text: string[] = [];
+  if (x.intro) { html.push(`<p>${ui.esc(x.intro)}</p>`); text.push(x.intro, ''); }
+  issueItems(x).forEach((it, n) => {
+    const body = it.comment || it.excerpt;
+    const link = itemLink(it);
+    html.push(`<h3>${n + 1}. ${ui.esc(it.title)}</h3>`, `<p>${ui.esc(body)}</p>`,
+      `<p>出典：${ui.esc(it.source)}${link ? `<br><a href="${ui.esc(link)}">${ui.esc(link)}</a>` : ''}</p>`);
+    text.push(`${n + 1}. ${it.title}`, body, `出典：${it.source}`, ...(link ? [link] : []), '');
+  });
+  const pr = prProduct(d);
+  if (pr) {
+    html.push(`<p>PR：<a href="${ui.esc(pr.link)}">${ui.esc(pr.name)}</a></p>`);
+    text.push(`PR：${pr.name}`, pr.link);
+  }
+  return { html: html.join('\n'), text: text.join('\n').trim() };
+}
+
 function preview(x: Issue, d: Delivery): string {
   const p = store.persona(d.persona);
-  const items = x.itemIds.map((id) => store.item(id)).filter((it) => it !== undefined);
-  const mailProducts = store.state.products.filter((pr) => pr.active && pr.personaIds.includes(d.persona)).slice(0, 1);
+  const items = issueItems(x);
+  const pr = prProduct(d);
   return `
     <div class="mail">
       <div class="mail-head" style="--c:${p ? ui.esc(p.color) : '#333'}">
@@ -87,7 +125,7 @@ function preview(x: Issue, d: Delivery): string {
               ${it.comment ? `<p class="mail-comment">💬 ${ui.esc(it.comment)}</p>` : `<p>${ui.esc(it.excerpt)}</p>`}
             </div>
           </div>`).join('') || '<p class="muted">記事が選択されていません</p>'}
-        ${mailProducts.map((pr) => `<div class="mail-pr"><small>PR</small><strong>${ui.esc(pr.name)}</strong><span>詳しく見る →</span></div>`).join('')}
+        ${pr ? `<div class="mail-pr"><small>PR</small><strong>${ui.esc(pr.name)}</strong><span>詳しく見る →</span></div>` : ''}
       </div>
     </div>`;
 }
@@ -102,18 +140,18 @@ function editor(x: Issue, d: Delivery): string {
       <div class="card-head">
         <h2>#${x.no} ${ui.badge(ISSUE_STATUS, x.status)}</h2>
         <div class="row-gap">
-          ${!locked && x.status === 'draft' ? `<button class="btn" data-act="schedule">予約する</button>` : ''}
-          ${x.status === 'scheduled' ? `<button class="btn" data-act="unschedule">予約を取り消す</button>` : ''}
-          ${!locked ? `<button class="btn btn-accent" data-act="send">今すぐ配信</button>` : ''}
+          <button class="btn btn-accent" data-act="copy-body">本文をコピー</button>
+          ${x.status === 'scheduled' ? `<button class="btn" data-act="unschedule">下書きに戻す</button>` : ''}
+          ${!locked ? `<button class="btn" data-act="mark-sent">配信済みにする</button>` : ''}
           ${!locked ? `<button class="btn btn-ghost-danger" data-act="del-issue">削除</button>` : ''}
         </div>
       </div>
-      ${locked ? `<p class="notice">${ui.fmtDate(x.sentAt)} に ${ui.num(d.subscribers)} 名へ配信済み（開封 ${ui.num(x.opens)}）</p>` : ''}
+      ${locked ? `<p class="notice">${ui.fmtDate(x.sentAt)} に ${ui.esc(d.channel)} で配信済み</p>` : `<p class="muted small">「本文をコピー」で note の編集画面に貼り付け、件名はタイトル欄に入れてください。投稿したら「配信済みにする」で記録します（note へは自動で投稿されません）</p>`}
       <div class="editor-grid">
         <div>
           <label class="field"><span>件名</span><input data-field="title" value="${ui.esc(x.title)}" ${locked ? 'disabled' : ''}></label>
           <label class="field"><span>リード文</span><textarea rows="3" data-field="intro" ${locked ? 'disabled' : ''}>${ui.esc(x.intro)}</textarea></label>
-          <label class="field"><span>配信日時</span><input type="datetime-local" data-field="scheduledAt" value="${ui.esc(x.scheduledAt)}" ${locked ? 'disabled' : ''}></label>
+          <label class="field"><span>配信予定日時</span><input type="datetime-local" data-field="scheduledAt" value="${ui.esc(x.scheduledAt)}" ${locked ? 'disabled' : ''}></label>
 
           <h3 class="sub">掲載記事 <small>${x.itemIds.length} 本</small></h3>
           <ol class="issue-items">
@@ -155,23 +193,23 @@ function onIssueAction(act: string, el: HTMLElement, x: Issue, d: Delivery): voi
   } else if (act === 'add-item') {
     const value = ui.byId<HTMLSelectElement>('add-item').value;
     store.update(() => { x.itemIds.push(value); });
-  } else if (act === 'schedule') {
+  } else if (act === 'copy-body') {
     if (!x.itemIds.length) { ui.toast('記事を1本以上追加してください', 'warn'); return; }
-    store.update(() => { x.status = 'scheduled'; store.log(`「${d.name}」#${x.no} を ${ui.fmtDate(x.scheduledAt)} に予約`); });
-    ui.toast('予約しました');
+    const { html, text } = noteBody(x, d);
+    void ui.copyRich(html, text, '本文をコピーしました。note の編集画面に貼り付けてください');
   } else if (act === 'unschedule') {
     store.update(() => { x.status = 'draft'; });
-  } else if (act === 'send') {
+  } else if (act === 'mark-sent') {
     if (!x.itemIds.length) { ui.toast('記事を1本以上追加してください', 'warn'); return; }
-    ui.confirmDialog('今すぐ配信', `「${d.name}」#${x.no} を ${d.subscribers} 名の購読者に配信します。よろしいですか？`, () => {
+    ui.confirmDialog('配信済みにする', `「${d.name}」#${x.no} を ${d.channel} に投稿しましたか？ 配信済みとして記録し、以後は編集できなくなります。`, () => {
       store.update(() => {
         x.status = 'sent';
         x.sentAt = new Date().toISOString();
-        x.opens = 0;
-        store.log(`「${d.name}」#${x.no} を配信`);
+        x.opens = null;
+        store.log(`「${d.name}」#${x.no} を配信済みにした`);
       });
-      ui.toast('配信しました');
-    }, '配信する');
+      ui.toast('配信済みにしました');
+    }, '配信済みにする');
   } else if (act === 'del-issue') {
     ui.confirmDialog('配信号を削除', `#${x.no}「${x.title}」を削除します。`, () => {
       selectIssue(null);

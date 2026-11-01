@@ -1,6 +1,6 @@
 /* Persona Wire — Supabase の表との読み書き（ペルソナ・記事・スコア・商品・操作ログ） */
 import { supabase } from './auth';
-import type { Activity, Asp, CollectRun, Item, ItemStatus, NotionDbName, Persona, PersonaId, Product, SourceKind, Verdict } from './types';
+import type { Activity, Asp, ClickStats, CollectRun, Item, ItemStatus, NotionDbName, Persona, PersonaId, Product, SourceKind, Verdict } from './types';
 
 interface PersonaRow {
   id: string;
@@ -58,6 +58,12 @@ interface ProductRow {
 
 interface ClickRow {
   product_id: string;
+  clicks_30d: number;
+  clicks_total: number;
+}
+
+interface ArticleClickRow {
+  article_id: string;
   clicks_30d: number;
   clicks_total: number;
 }
@@ -179,21 +185,27 @@ export function dbMessage(e: unknown): string {
 }
 
 export const db = {
-  async loadAll(): Promise<{ personas: Persona[]; items: Item[]; products: Product[]; activity: Activity[]; runs: CollectRun[] }> {
-    const [p, a, pr, c, l, r] = await Promise.all([
+  async loadAll(): Promise<{ personas: Persona[]; items: Item[]; products: Product[]; clicks: ClickStats; activity: Activity[]; runs: CollectRun[] }> {
+    const [p, a, pr, c, ac, dc, l, r] = await Promise.all([
       supabase.from('personas').select('*').order('code'),
       supabase.from('articles').select('*, article_persona_scores(persona_id, relevance_score, reasons), article_products(product_id)').order('collected_at', { ascending: false }),
       supabase.from('products').select('*, product_personas(persona_id)').order('created_at', { ascending: false }),
       supabase.from('product_click_counts').select('*'),
+      supabase.from('article_click_counts').select('*'),
+      supabase.from('daily_click_counts').select('day, clicks').order('day'),
       supabase.from('activity_logs').select('created_at, action, detail, actor, users(name)').order('created_at', { ascending: false }).limit(30),
       supabase.from('collect_runs').select('started_at, finished_at, trigger, ok, inserted, skipped, purged, message').order('started_at', { ascending: false }).limit(10),
     ]);
-    for (const res of [p, a, pr, c, l, r]) if (res.error) throw res.error;
+    for (const res of [p, a, pr, c, ac, dc, l, r]) if (res.error) throw res.error;
     const clicks = new Map((c.data as ClickRow[]).map((x) => [x.product_id, x]));
     return {
       personas: (p.data as PersonaRow[]).map(toPersona),
       items: (a.data as unknown as ArticleRow[]).map(toItem),
       products: (pr.data as ProductRow[]).map((x) => toProduct(x, clicks.get(x.id))),
+      clicks: {
+        articles: (ac.data as ArticleClickRow[]).map((x) => ({ articleId: x.article_id, clicks30: x.clicks_30d, clicksTotal: x.clicks_total })),
+        daily: dc.data as Array<{ day: string; clicks: number }>,
+      },
       activity: (l.data as unknown as LogRow[]).map(toActivity),
       runs: (r.data as RunRow[]).map(toRun),
     };
