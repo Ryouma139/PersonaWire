@@ -13,6 +13,12 @@ const ISSUE_STATUS: Record<IssueStatus, ui.BadgeDef> = {
 };
 const CHANNELS = ['メール', 'LINE', 'Discord', 'note メンバーシップ'];
 
+/** 選んでいる配信号を URL にも残す。URL に古い号が残ると、描き直しのたびにその号へ戻されるため */
+function selectIssue(id: string | null): void {
+  issueId = id;
+  history.replaceState(null, '', id ? '#delivery/' + id : '#delivery');
+}
+
 function planForm(d?: Delivery): string {
   const s = store.state;
   return `
@@ -55,7 +61,7 @@ function newIssue(d: Delivery): void {
   const dt = new Date(Date.now() + 3 * 864e5);
   const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 6e4).toISOString().slice(0, 11) + '07:00';
   const x: Issue = { id: uid('is'), deliveryId: d.id, no: last + 1, title: '新しい配信号', intro: '', status: 'draft', scheduledAt: local, itemIds: candidates, sentAt: null, opens: null };
-  issueId = x.id;
+  selectIssue(x.id);
   store.update(() => { s.issues.push(x); });
   ui.toast(`#${x.no} を作成しました（採用済み記事 ${candidates.length} 本を自動選定）`);
 }
@@ -168,7 +174,7 @@ function onIssueAction(act: string, el: HTMLElement, x: Issue, d: Delivery): voi
     }, '配信する');
   } else if (act === 'del-issue') {
     ui.confirmDialog('配信号を削除', `#${x.no}「${x.title}」を削除します。`, () => {
-      issueId = null;
+      selectIssue(null);
       store.update((s) => { s.issues = s.issues.filter((i) => i.id !== x.id); });
     }, '削除する');
   }
@@ -238,14 +244,14 @@ function render(root: HTMLElement): void {
     if (!el) return;
     const act = el.dataset.act ?? '';
     const target = store.delivery(el.dataset.id);
-    if (act === 'plan') { planId = el.dataset.id ?? null; issueId = null; render(root); }
+    if (act === 'plan') { planId = el.dataset.id ?? null; selectIssue(null); render(root); }
     else if (act === 'new-plan') editPlan();
     else if (act === 'edit-plan') { e.stopPropagation(); editPlan(target); }
     else if (act === 'toggle-plan' && target) {
       e.stopPropagation();
       store.update(() => { target.status = target.status === 'active' ? 'paused' : 'active'; });
     }
-    else if (act === 'issue') { issueId = el.dataset.id ?? null; history.replaceState(null, '', '#delivery/' + issueId); render(root); }
+    else if (act === 'issue') { selectIssue(el.dataset.id ?? null); render(root); }
     else if (act === 'new-issue' && d) newIssue(d);
     else if (x && d) onIssueAction(act, el, x, d);
   };
