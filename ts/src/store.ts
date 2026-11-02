@@ -37,7 +37,7 @@ const SITE: SiteConfig = { title: 'Persona Wire', url: (import.meta.env.VITE_SIT
 /** 有料配信・Notion のサンプル。ペルソナは p1〜p5 で書き、DB を読んだあとにコード（P01〜）で付け替える */
 type LocalState = Omit<AppState, 'personas' | 'items' | 'products' | 'clicks' | 'revenues' | 'activity' | 'runs' | 'site'>;
 
-const NO_CLICKS: ClickStats = { articles: [], daily: [] };
+const NO_CLICKS: ClickStats = { articles: [], personas: [], daily: [] };
 
 function seedLocal(): LocalState {
   return {

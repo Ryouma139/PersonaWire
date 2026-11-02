@@ -18,6 +18,7 @@
 | [migrations/20261101000000_medium_source.sql](migrations/20261101000000_medium_source.sql) | 記事の種類に `MEDIUM` を足し、Medium のタグ #japan（英語）を収集先に登録する（1 回 2 件まで、仮の主担当は P08） |
 | [migrations/20261101010000_click_accuracy.sql](migrations/20261101010000_click_accuracy.sql) | クリック数を正しい値にする。同じ人・同じ商品は 1 日 1 回だけ数える（`link_clicks.visitor`、`click_day`）。`record_click` は合言葉（`app_secrets` の `click_token`）が無いと記録しない。管理画面用の記事別・日別の集計（`article_click_counts`、`daily_click_counts`）。**実行したら、合言葉を公開サイト 2 つの Secret に入れる**（[site/README.md](../site/README.md) の「クリックの合言葉」） |
 | [migrations/20261101020000_revenues.sql](migrations/20261101020000_revenues.sql) | 売上の手入力（`revenues`）。月ごとに、購読と ASP ごとのアフィリエイト報酬を入れる。見るのはメンバー、入れる・直すのは管理者だけ |
+| [migrations/20261102000000_persona_clicks.sql](migrations/20261102000000_persona_clicks.sql) | 管理画面用の、ペルソナごとのクリック数（`persona_click_counts`）。ペルソナの無い場所で押されたものは、`persona_id` が空の 1 行にまとまる |
 | [seed.sql](seed.sql) | 開発用のサンプルデータ（ペルソナ 5 件、記事 14 件、スコア 70 件）。`ts/src/store.ts` の初期データから自動生成。何度実行しても重複しない |
 
 ## 適用のしかた

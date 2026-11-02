@@ -142,6 +142,26 @@ function articleRanking(articles: ClickStats['articles']): string {
     </table>`;
 }
 
+/** ペルソナ別のクリック数（30 日の多い順。ペルソナの無い場所のクリックは最後） */
+function personaClicks(rows: ClickStats['personas']): string {
+  if (!rows.length) return '<p class="empty">クリックはまだありません</p>';
+  const sorted = [...rows].sort((a, b) => Number(a.personaId === null) - Number(b.personaId === null) || b.clicks30 - a.clicks30 || b.clicksTotal - a.clicksTotal);
+  const max = Math.max(...rows.map((r) => r.clicks30), 1);
+  return `
+    <table class="table">
+      <thead><tr><th>ペルソナ</th><th></th><th class="num">30日</th><th class="num">累計</th></tr></thead>
+      <tbody>${sorted.map((r) => {
+        const p = r.personaId ? store.persona(r.personaId) : undefined;
+        const who = r.personaId === null ? '<small class="muted">ペルソナなし（トップページなど）</small>' : p ? ui.personaChip(p, true) : '<small class="muted">削除・無効のペルソナ</small>';
+        return `<tr>
+          <td>${who}</td>
+          <td style="width:40%"><span class="click-bar" style="width:${Math.round((r.clicks30 / max) * 100)}%"></span></td>
+          <td class="num">${ui.num(r.clicks30)}</td><td class="num">${ui.num(r.clicksTotal)}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+}
+
 function render(root: HTMLElement): void {
   const s = store.state;
   const admin = auth.isAdmin();
@@ -171,6 +191,11 @@ function render(root: HTMLElement): void {
         ${articleRanking(s.clicks.articles)}
       </section>
     </div>
+
+    <section class="card table-card">
+      <div class="card-head"><h2>ペルソナ別のクリック</h2></div>
+      ${personaClicks(s.clicks.personas)}
+    </section>
 
     <div class="tabs">
       <button class="tab ${!personaFilter ? 'active' : ''}" data-act="filter" data-id="">すべて</button>
